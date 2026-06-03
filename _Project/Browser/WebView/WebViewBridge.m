@@ -4,6 +4,11 @@
 // cleanly against the tvOS SDK regardless of WebKit header availability.
 
 #import "WebViewBridge.h"
+#import <objc/message.h>
+#import <dlfcn.h>
+
+// All performSelector: calls in this file use NSSelectorFromString — intentional runtime dispatch.
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
 
 // KVO context tag
 static void *kWebViewBridgeKVOContext = &kWebViewBridgeKVOContext;
@@ -27,6 +32,12 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
     self = [super init];
     if (!self) return nil;
 
+    // Load WebKit at runtime — not in the public tvOS SDK but present on device/simulator
+    static dispatch_once_t webKitOnce;
+    dispatch_once(&webKitOnce, ^{
+        dlopen("/System/Library/Frameworks/WebKit.framework/WebKit", RTLD_LAZY | RTLD_GLOBAL);
+    });
+
     // Register user agent before the web view is created so WKWebView picks it up
     [[NSUserDefaults standardUserDefaults] registerDefaults:@{@"UserAgent": userAgent}];
 
@@ -36,7 +47,9 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
 
     // Create WKWebView via runtime — avoids tvOS SDK compile restrictions
     NSAssert(WKWebViewClass() != nil, @"WKWebView not found in tvOS runtime");
-    _wkWebView = [[WKWebViewClass() alloc] initWithFrame:CGRectZero configuration:config];
+    id wkAlloc = [WKWebViewClass() alloc];
+    SEL initSel = NSSelectorFromString(@"initWithFrame:configuration:");
+    _wkWebView = ((id (*)(id, SEL, CGRect, id))objc_msgSend)(wkAlloc, initSel, CGRectZero, config);
 
     // Attach delegates (ObjC runtime selector-based, no WKNavigationDelegate import needed)
     [_wkWebView performSelector:NSSelectorFromString(@"setNavigationDelegate:") withObject:self];
@@ -89,10 +102,7 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
         if (completionHandler) completionHandler(nil, nil);
         return;
     }
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
     [_wkWebView performSelector:sel withObject:js withObject:[completionHandler copy]];
-#pragma clang diagnostic pop
 }
 
 // MARK: - Cache & Cookies (all via NSClassFromString — no WebKit headers needed)
@@ -106,12 +116,9 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
     [store performSelector:NSSelectorFromString(@"fetchDataRecordsOfTypes:completionHandler:")
                 withObject:allTypes
                 withObject:^(NSArray *records) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
         [store performSelector:NSSelectorFromString(@"removeDataOfTypes:forDataRecords:completionHandler:")
                     withObject:allTypes
                     withObject:records];
-#pragma clang diagnostic pop
     }];
     [[NSURLCache sharedURLCache] removeAllCachedResponses];
 }
@@ -129,12 +136,9 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
             for (NSHTTPCookie *c in s.cookies.copy) [s deleteCookie:c];
             if (completion) dispatch_async(dispatch_get_main_queue(), completion);
         };
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
         [store performSelector:NSSelectorFromString(@"removeDataOfTypes:forDataRecords:completionHandler:")
                     withObject:cookieTypes
                     withObject:records];
-#pragma clang diagnostic pop
         done();
     }];
 }
@@ -171,13 +175,12 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
         if ([keyPath isEqualToString:@"loading"]) {
             BOOL loading = [[change objectForKey:NSKeyValueChangeNewKey] boolValue];
             if (loading) {
-                [self.delegate bridgeDidStartLoad];
+                if (self.onStartLoad) self.onStartLoad();
             } else {
-                [self.delegate bridgeDidFinishLoadWithURL:self.currentURL.absoluteString ?: @""
-                                                   title:self.currentTitle ?: @""];
+                if (self.onFinishLoad) self.onFinishLoad(self.currentURL.absoluteString ?: @"", self.currentTitle ?: @"");
             }
         } else if ([keyPath isEqualToString:@"canGoBack"] || [keyPath isEqualToString:@"canGoForward"]) {
-            [self.delegate bridgeDidUpdateNavigationCanGoBack:self.canGoBack canGoForward:self.canGoForward];
+            if (self.onUpdateNavigation) self.onUpdateNavigation(self.canGoBack, self.canGoForward);
         }
     });
 }
@@ -190,12 +193,12 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
 
 - (void)webView:(id)webView didFailProvisionalNavigation:(id)navigation withError:(NSError *)error {
     if (error.code == NSURLErrorCancelled || error.code == 204) return;
-    [self.delegate bridgeDidFailLoadWithError:error requestURL:self.pendingRequestURL];
+    if (self.onFailLoad) self.onFailLoad(error, self.pendingRequestURL);
 }
 
 - (void)webView:(id)webView didFail:(id)navigation withError:(NSError *)error {
     if (error.code == NSURLErrorCancelled || error.code == 204) return;
-    [self.delegate bridgeDidFailLoadWithError:error requestURL:self.pendingRequestURL];
+    if (self.onFailLoad) self.onFailLoad(error, self.pendingRequestURL);
 }
 
 // MARK: - UI delegate selectors

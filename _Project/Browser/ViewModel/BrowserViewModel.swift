@@ -16,14 +16,43 @@ final class BrowserViewModel {
 
     init() {
         webContainer = WebViewContainer(userAgent: settings.activeUserAgent)
-        webContainer.bridge.delegate = self
+        let bridge = webContainer.bridge
+        bridge.onStartLoad = { [weak self] in
+            DispatchQueue.main.async { self?.navBarViewModel.isLoading = true }
+        }
+        bridge.onFinishLoad = { [weak self] url, title in
+            HistoryManager.shared.add(url: url, title: title)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.navBarViewModel.isLoading = false
+                self.navBarViewModel.update(
+                    url: url,
+                    title: title,
+                    canGoBack: self.webContainer.bridge.canGoBack,
+                    canGoForward: self.webContainer.bridge.canGoForward
+                )
+                Task { await self.webContainer.jsExecutor.updateFontSize(self.settings.textFontSize) }
+            }
+        }
+        bridge.onFailLoad = { [weak self] error, requestURL in
+            DispatchQueue.main.async {
+                self?.navBarViewModel.isLoading = false
+                self?.onLoadError?(error, requestURL)
+            }
+        }
+        bridge.onUpdateNavigation = { [weak self] canGoBack, canGoForward in
+            DispatchQueue.main.async {
+                self?.navBarViewModel.canGoBack = canGoBack
+                self?.navBarViewModel.canGoForward = canGoForward
+            }
+        }
     }
 
     // MARK: - Navigation
 
     func load(rawInput: String) {
         guard let url = parseURL(rawInput) else { return }
-        webContainer.bridge.loadURL(url)
+        webContainer.bridge.load(url)
     }
 
     func loadHomepage() {
@@ -158,44 +187,3 @@ final class BrowserViewModel {
     }
 }
 
-// MARK: - WebViewBridgeDelegate
-
-extension BrowserViewModel: WebViewBridgeDelegate {
-
-    func bridgeDidStartLoad() {
-        DispatchQueue.main.async { [weak self] in
-            self?.navBarViewModel.isLoading = true
-        }
-    }
-
-    func bridgeDidFinishLoad(withURL url: String, title: String) {
-        HistoryManager.shared.add(url: url, title: title)
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.navBarViewModel.isLoading = false
-            self.navBarViewModel.update(
-                url: url,
-                title: title,
-                canGoBack: self.webContainer.bridge.canGoBack,
-                canGoForward: self.webContainer.bridge.canGoForward
-            )
-            // Apply font size after each page load
-            Task { await self.webContainer.jsExecutor.updateFontSize(self.settings.textFontSize) }
-        }
-    }
-
-    func bridgeDidFailLoad(withError error: Error, requestURL: String?) {
-        DispatchQueue.main.async { [weak self] in
-            self?.navBarViewModel.isLoading = false
-            self?.onLoadError?(error, requestURL)
-        }
-    }
-
-    // ObjC selector: bridgeDidUpdateNavigationCanGoBack:canGoForward:
-    func bridgeDidUpdateNavigationCanGoBack(_ canGoBack: Bool, canGoForward: Bool) {
-        DispatchQueue.main.async { [weak self] in
-            self?.navBarViewModel.canGoBack = canGoBack
-            self?.navBarViewModel.canGoForward = canGoForward
-        }
-    }
-}

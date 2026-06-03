@@ -32,7 +32,6 @@
 		/* Frameworks */
 		9675E1FC20855F6500A4A84A /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9675E1FB20855F6500A4A84A /* Foundation.framework */; };
 		9675E1FF20857AEF00A4A84A /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9675E1FE20857AEF00A4A84A /* UIKit.framework */; };
-		9675E200AABBCCDDEEFF0001 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9675E201AABBCCDDEEFF0001 /* WebKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -63,7 +62,6 @@
 		B0F6B4611BAEBF9900E2F26B /* README.mdown */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.mdown; sourceTree = "<group>"; };
 		9675E1FB20855F6500A4A84A /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		9675E1FE20857AEF00A4A84A /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
-		9675E201AABBCCDDEEFF0001 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
 		/* Cursor PNG assets keep-existing refs (renamed for clarity) */
 		3A2A7C1121E7805DFILE0001 /* go-back-left-arrow.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "go-back-left-arrow.png"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -75,7 +73,6 @@
 			files = (
 				9675E1FF20857AEF00A4A84A /* UIKit.framework in Frameworks */,
 				9675E1FC20855F6500A4A84A /* Foundation.framework in Frameworks */,
-				9675E200AABBCCDDEEFF0001 /* WebKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -87,7 +84,6 @@
 			children = (
 				9675E1FE20857AEF00A4A84A /* UIKit.framework */,
 				9675E1FB20855F6500A4A84A /* Foundation.framework */,
-				9675E201AABBCCDDEEFF0001 /* WebKit.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";

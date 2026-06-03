@@ -44,7 +44,7 @@ final class NavigationBarView: UIView {
     }()
 
     private let blurView: UIVisualEffectView = {
-        let v = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
+        let v = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
         v.translatesAutoresizingMaskIntoConstraints = false
         return v
     }()
@@ -177,12 +177,10 @@ final class NavigationBarView: UIView {
         let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .regular)
         let img = UIImage(systemName: symbol, withConfiguration: config)
 
-        var btnConfig = UIButton.Configuration.plain()
-        btnConfig.image = img
-        btnConfig.baseForegroundColor = .white
-        btnConfig.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
-
-        let btn = UIButton(configuration: btnConfig)
+        let btn = UIButton(type: .system)
+        btn.setImage(img, for: .normal)
+        btn.tintColor = .white
+        btn.contentEdgeInsets = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
         btn.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             btn.widthAnchor.constraint(equalToConstant: 44),

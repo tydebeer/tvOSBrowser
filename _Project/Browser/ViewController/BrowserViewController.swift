@@ -22,7 +22,7 @@ final class BrowserViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = .black
         setupLayout()
         setupCursor()
         setupNavBar()
@@ -40,8 +40,6 @@ final class BrowserViewController: UIViewController {
             advancedMenu.showHints()
         }
     }
-
-    override var prefersStatusBarHidden: Bool { true }
 
     // MARK: - Layout
 

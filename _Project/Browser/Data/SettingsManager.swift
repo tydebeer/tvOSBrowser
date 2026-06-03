@@ -85,7 +85,7 @@ final class SettingsManager {
 
     func restoreCookies() {
         guard let data = defaults.data(forKey: Keys.applicationCookie),
-              let cookies = try? NSKeyedUnarchiver.unarchivedObject(ofClasses: [NSArray.self, NSHTTPCookie.self], from: data) as? [HTTPCookie]
+              let cookies = try? NSKeyedUnarchiver.unarchivedObject(ofClasses: [NSArray.self, HTTPCookie.self], from: data) as? [HTTPCookie]
         else { return }
         for cookie in cookies {
             HTTPCookieStorage.shared.setCookie(cookie)

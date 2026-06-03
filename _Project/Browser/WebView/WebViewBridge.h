@@ -6,16 +6,12 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@protocol WebViewBridgeDelegate <NSObject>
-- (void)bridgeDidStartLoad;
-- (void)bridgeDidFinishLoadWithURL:(NSString *)url title:(NSString *)title;
-- (void)bridgeDidFailLoadWithError:(NSError *)error requestURL:(nullable NSString *)requestURL;
-- (void)bridgeDidUpdateNavigationCanGoBack:(BOOL)canGoBack canGoForward:(BOOL)canGoForward;
-@end
-
 @interface WebViewBridge : NSObject
 
-@property (nonatomic, weak, nullable) id<WebViewBridgeDelegate> delegate;
+@property (nonatomic, copy, nullable) void (^onStartLoad)(void);
+@property (nonatomic, copy, nullable) void (^onFinishLoad)(NSString *url, NSString *title);
+@property (nonatomic, copy, nullable) void (^onFailLoad)(NSError *error, NSString * _Nullable requestURL);
+@property (nonatomic, copy, nullable) void (^onUpdateNavigation)(BOOL canGoBack, BOOL canGoForward);
 @property (nonatomic, readonly) UIView *webView;
 @property (nonatomic, readonly) BOOL canGoBack;
 @property (nonatomic, readonly) BOOL canGoForward;
