@@ -1,47 +1,54 @@
 // WebViewBridge.m
-// Uses NSClassFromString to create WKWebView, bypassing tvOS SDK restrictions
-// while keeping full WKWebView functionality for sideloaded apps.
+// Zero WebKit imports — every WKWebView/WKWebViewConfiguration/WKWebsiteDataStore
+// reference goes through NSClassFromString or performSelector so the file compiles
+// cleanly against the tvOS SDK regardless of WebKit header availability.
 
 #import "WebViewBridge.h"
 
-// KVO context
+// KVO context tag
 static void *kWebViewBridgeKVOContext = &kWebViewBridgeKVOContext;
 
+// Runtime class helpers (avoids repeating NSClassFromString throughout)
+static Class WKWebViewClass(void)          { return NSClassFromString(@"WKWebView"); }
+static Class WKConfigurationClass(void)    { return NSClassFromString(@"WKWebViewConfiguration"); }
+static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsiteDataStore"); }
+
 @interface WebViewBridge ()
-@property (nonatomic, strong) id wkWebView; // runtime type: WKWebView
+@property (nonatomic, strong) id wkWebView;      // runtime: WKWebView
 @property (nonatomic, copy, nullable) NSString *pendingRequestURL;
 @property (nonatomic) BOOL isObserving;
 @end
 
 @implementation WebViewBridge
 
+// MARK: - Init
+
 - (instancetype)initWithUserAgent:(NSString *)userAgent {
     self = [super init];
     if (!self) return nil;
 
-    // Register user agent before creating the web view
+    // Register user agent before the web view is created so WKWebView picks it up
     [[NSUserDefaults standardUserDefaults] registerDefaults:@{@"UserAgent": userAgent}];
 
-    WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
-    config.allowsInlineMediaPlayback = YES;
+    // Create WKWebViewConfiguration via runtime
+    id config = [[WKConfigurationClass() alloc] init];
+    [config setValue:@YES forKey:@"allowsInlineMediaPlayback"];
 
-    // Create WKWebView via NSClassFromString — avoids tvOS SDK compile restrictions
-    Class wkClass = NSClassFromString(@"WKWebView");
-    NSAssert(wkClass != nil, @"WKWebView not available at runtime");
-    _wkWebView = [[wkClass alloc] initWithFrame:CGRectZero configuration:config];
+    // Create WKWebView via runtime — avoids tvOS SDK compile restrictions
+    NSAssert(WKWebViewClass() != nil, @"WKWebView not found in tvOS runtime");
+    _wkWebView = [[WKWebViewClass() alloc] initWithFrame:CGRectZero configuration:config];
 
-    // Set delegates via performSelector to avoid type-checking on tvOS
+    // Attach delegates (ObjC runtime selector-based, no WKNavigationDelegate import needed)
     [_wkWebView performSelector:NSSelectorFromString(@"setNavigationDelegate:") withObject:self];
-    [_wkWebView performSelector:NSSelectorFromString(@"setUIDelegate:") withObject:self];
+    [_wkWebView performSelector:NSSelectorFromString(@"setUIDelegate:")         withObject:self];
 
-    // Disable scroll so cursor mode can handle panning
+    // Disable native scroll — cursor mode handles panning
     UIScrollView *sv = [self scrollView];
     sv.scrollEnabled = NO;
     sv.panGestureRecognizer.allowedTouchTypes = @[@(UITouchTypeIndirect)];
     sv.bounces = YES;
 
     [self startObserving];
-
     return self;
 }
 
@@ -51,53 +58,32 @@ static void *kWebViewBridgeKVOContext = &kWebViewBridgeKVOContext;
 
 // MARK: - Public API
 
-- (UIView *)webView {
-    return (UIView *)_wkWebView;
-}
-
-- (BOOL)canGoBack {
-    return [[_wkWebView valueForKey:@"canGoBack"] boolValue];
-}
-
-- (BOOL)canGoForward {
-    return [[_wkWebView valueForKey:@"canGoForward"] boolValue];
-}
-
-- (nullable NSURL *)currentURL {
-    return [_wkWebView valueForKey:@"URL"];
-}
-
-- (nullable NSString *)currentTitle {
-    return [_wkWebView valueForKey:@"title"];
-}
+- (UIView *)webView       { return (UIView *)_wkWebView; }
+- (BOOL)canGoBack         { return [[_wkWebView valueForKey:@"canGoBack"]    boolValue]; }
+- (BOOL)canGoForward      { return [[_wkWebView valueForKey:@"canGoForward"] boolValue]; }
+- (nullable NSURL *)currentURL   { return [_wkWebView valueForKey:@"URL"];   }
+- (nullable NSString *)currentTitle { return [_wkWebView valueForKey:@"title"]; }
 
 - (UIScrollView *)scrollView {
     return [_wkWebView valueForKey:@"scrollView"];
 }
 
 - (void)loadURL:(NSURL *)url {
-    NSURLRequest *request = [NSURLRequest requestWithURL:url];
-    [_wkWebView performSelector:NSSelectorFromString(@"loadRequest:") withObject:request];
+    [_wkWebView performSelector:NSSelectorFromString(@"loadRequest:")
+                     withObject:[NSURLRequest requestWithURL:url]];
 }
-
-- (void)goBack {
-    [_wkWebView performSelector:NSSelectorFromString(@"goBack")];
-}
-
-- (void)goForward {
-    [_wkWebView performSelector:NSSelectorFromString(@"goForward")];
-}
-
-- (void)reload {
-    [_wkWebView performSelector:NSSelectorFromString(@"reload")];
-}
+- (void)goBack    { [_wkWebView performSelector:NSSelectorFromString(@"goBack")]; }
+- (void)goForward { [_wkWebView performSelector:NSSelectorFromString(@"goForward")]; }
+- (void)reload    { [_wkWebView performSelector:NSSelectorFromString(@"reload")]; }
 
 - (void)setFrame:(CGRect)frame {
     ((UIView *)_wkWebView).frame = frame;
 }
 
-- (void)evaluateJavaScript:(NSString *)js completionHandler:(void (^)(id _Nullable, NSError * _Nullable))completionHandler {
-    // ObjC blocks are objects — performSelector:withObject:withObject: works cleanly here.
+// MARK: - JavaScript
+
+- (void)evaluateJavaScript:(NSString *)js
+         completionHandler:(void (^)(id _Nullable, NSError * _Nullable))completionHandler {
     SEL sel = NSSelectorFromString(@"evaluateJavaScript:completionHandler:");
     if (![_wkWebView respondsToSelector:sel]) {
         if (completionHandler) completionHandler(nil, nil);
@@ -109,26 +95,47 @@ static void *kWebViewBridgeKVOContext = &kWebViewBridgeKVOContext;
 #pragma clang diagnostic pop
 }
 
+// MARK: - Cache & Cookies (all via NSClassFromString — no WebKit headers needed)
+
 - (void)clearCache {
-    WKWebsiteDataStore *store = [WKWebsiteDataStore defaultDataStore];
-    NSSet *types = [WKWebsiteDataStore allWebsiteDataTypes];
-    [store fetchDataRecordsOfTypes:types completionHandler:^(NSArray *records) {
-        [store removeDataOfTypes:types forDataRecords:records completionHandler:^{}];
+    // WKWebsiteDataStore.defaultDataStore
+    id store = [WKDataStoreClass() performSelector:NSSelectorFromString(@"defaultDataStore")];
+    // WKWebsiteDataStore.allWebsiteDataTypes
+    NSSet *allTypes = [WKDataStoreClass() performSelector:NSSelectorFromString(@"allWebsiteDataTypes")];
+
+    [store performSelector:NSSelectorFromString(@"fetchDataRecordsOfTypes:completionHandler:")
+                withObject:allTypes
+                withObject:^(NSArray *records) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        [store performSelector:NSSelectorFromString(@"removeDataOfTypes:forDataRecords:completionHandler:")
+                    withObject:allTypes
+                    withObject:records];
+#pragma clang diagnostic pop
     }];
     [[NSURLCache sharedURLCache] removeAllCachedResponses];
 }
 
 - (void)clearCookiesWithCompletion:(void (^)(void))completion {
-    WKWebsiteDataStore *store = [WKWebsiteDataStore defaultDataStore];
-    NSSet *cookieTypes = [NSSet setWithObject:WKWebsiteDataTypeCookies];
-    [store fetchDataRecordsOfTypes:cookieTypes completionHandler:^(NSArray *records) {
-        [store removeDataOfTypes:cookieTypes forDataRecords:records completionHandler:^{
-            NSHTTPCookieStorage *storage = [NSHTTPCookieStorage sharedHTTPCookieStorage];
-            for (NSHTTPCookie *cookie in storage.cookies.copy) {
-                [storage deleteCookie:cookie];
-            }
+    id store = [WKDataStoreClass() performSelector:NSSelectorFromString(@"defaultDataStore")];
+    // WKWebsiteDataTypeCookies is the string "WKWebsiteDataTypeCookies"
+    NSSet *cookieTypes = [NSSet setWithObject:@"WKWebsiteDataTypeCookies"];
+
+    [store performSelector:NSSelectorFromString(@"fetchDataRecordsOfTypes:completionHandler:")
+                withObject:cookieTypes
+                withObject:^(NSArray *records) {
+        void (^done)(void) = ^{
+            NSHTTPCookieStorage *s = [NSHTTPCookieStorage sharedHTTPCookieStorage];
+            for (NSHTTPCookie *c in s.cookies.copy) [s deleteCookie:c];
             if (completion) dispatch_async(dispatch_get_main_queue(), completion);
-        }];
+        };
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        [store performSelector:NSSelectorFromString(@"removeDataOfTypes:forDataRecords:completionHandler:")
+                    withObject:cookieTypes
+                    withObject:records];
+#pragma clang diagnostic pop
+        done();
     }];
 }
 
@@ -137,43 +144,37 @@ static void *kWebViewBridgeKVOContext = &kWebViewBridgeKVOContext;
 - (void)startObserving {
     if (_isObserving) return;
     NSObject *wv = (NSObject *)_wkWebView;
-    [wv addObserver:self forKeyPath:@"loading" options:NSKeyValueObservingOptionNew context:kWebViewBridgeKVOContext];
-    [wv addObserver:self forKeyPath:@"URL" options:NSKeyValueObservingOptionNew context:kWebViewBridgeKVOContext];
-    [wv addObserver:self forKeyPath:@"title" options:NSKeyValueObservingOptionNew context:kWebViewBridgeKVOContext];
-    [wv addObserver:self forKeyPath:@"canGoBack" options:NSKeyValueObservingOptionNew context:kWebViewBridgeKVOContext];
-    [wv addObserver:self forKeyPath:@"canGoForward" options:NSKeyValueObservingOptionNew context:kWebViewBridgeKVOContext];
+    for (NSString *kp in @[@"loading", @"URL", @"title", @"canGoBack", @"canGoForward"]) {
+        [wv addObserver:self forKeyPath:kp options:NSKeyValueObservingOptionNew context:kWebViewBridgeKVOContext];
+    }
     _isObserving = YES;
 }
 
 - (void)stopObserving {
     if (!_isObserving) return;
     NSObject *wv = (NSObject *)_wkWebView;
-    [wv removeObserver:self forKeyPath:@"loading" context:kWebViewBridgeKVOContext];
-    [wv removeObserver:self forKeyPath:@"URL" context:kWebViewBridgeKVOContext];
-    [wv removeObserver:self forKeyPath:@"title" context:kWebViewBridgeKVOContext];
-    [wv removeObserver:self forKeyPath:@"canGoBack" context:kWebViewBridgeKVOContext];
-    [wv removeObserver:self forKeyPath:@"canGoForward" context:kWebViewBridgeKVOContext];
+    for (NSString *kp in @[@"loading", @"URL", @"title", @"canGoBack", @"canGoForward"]) {
+        [wv removeObserver:self forKeyPath:kp context:kWebViewBridgeKVOContext];
+    }
     _isObserving = NO;
 }
 
-- (void)observeValueForKeyPath:(nullable NSString *)keyPath
-                      ofObject:(nullable id)object
-                        change:(nullable NSDictionary *)change
-                       context:(nullable void *)context {
+- (void)observeValueForKeyPath:(NSString *)keyPath
+                      ofObject:(id)object
+                        change:(NSDictionary *)change
+                       context:(void *)context {
     if (context != kWebViewBridgeKVOContext) {
         [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
         return;
     }
-
     dispatch_async(dispatch_get_main_queue(), ^{
         if ([keyPath isEqualToString:@"loading"]) {
             BOOL loading = [[change objectForKey:NSKeyValueChangeNewKey] boolValue];
             if (loading) {
                 [self.delegate bridgeDidStartLoad];
             } else {
-                NSString *url = self.currentURL.absoluteString ?: @"";
-                NSString *title = self.currentTitle ?: @"";
-                [self.delegate bridgeDidFinishLoadWithURL:url title:title];
+                [self.delegate bridgeDidFinishLoadWithURL:self.currentURL.absoluteString ?: @""
+                                                   title:self.currentTitle ?: @""];
             }
         } else if ([keyPath isEqualToString:@"canGoBack"] || [keyPath isEqualToString:@"canGoForward"]) {
             [self.delegate bridgeDidUpdateNavigationCanGoBack:self.canGoBack canGoForward:self.canGoForward];
@@ -181,16 +182,13 @@ static void *kWebViewBridgeKVOContext = &kWebViewBridgeKVOContext;
     });
 }
 
-// MARK: - WKNavigationDelegate (via ObjC runtime selector matching, no formal conformance needed)
+// MARK: - Navigation delegate selectors (matched via ObjC runtime, no formal conformance)
 
-// Called when load starts — supplemental to KVO, for pendingRequestURL tracking
 - (void)webView:(id)webView didStartProvisionalNavigation:(id)navigation {
     self.pendingRequestURL = self.currentURL.absoluteString;
 }
 
-// Called on load failure
 - (void)webView:(id)webView didFailProvisionalNavigation:(id)navigation withError:(NSError *)error {
-    // Ignore cancelled (-999) and interim redirects (204)
     if (error.code == NSURLErrorCancelled || error.code == 204) return;
     [self.delegate bridgeDidFailLoadWithError:error requestURL:self.pendingRequestURL];
 }
@@ -200,13 +198,13 @@ static void *kWebViewBridgeKVOContext = &kWebViewBridgeKVOContext;
     [self.delegate bridgeDidFailLoadWithError:error requestURL:self.pendingRequestURL];
 }
 
-// MARK: - WKUIDelegate (via ObjC runtime selector matching)
+// MARK: - UI delegate selectors
 
-// Handle JS alert() calls from web pages
-- (void)webView:(id)webView runJavaScriptAlertPanelWithMessage:(NSString *)message initiatedByFrame:(id)frame completionHandler:(void (^)(void))completionHandler {
-    // Dispatch to delegate's view controller for presentation — not ideal from here,
-    // but handle gracefully by completing without showing (WKWebView requires the block to be called)
-    if (completionHandler) completionHandler();
+- (void)webView:(id)webView
+    runJavaScriptAlertPanelWithMessage:(NSString *)message
+                      initiatedByFrame:(id)frame
+                     completionHandler:(void (^)(void))completionHandler {
+    if (completionHandler) completionHandler(); // must always call the handler
 }
 
 @end

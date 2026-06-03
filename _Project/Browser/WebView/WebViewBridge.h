@@ -3,7 +3,6 @@
 // isolating the private-API usage from the Swift codebase.
 
 #import <UIKit/UIKit.h>
-#import <WebKit/WebKit.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
