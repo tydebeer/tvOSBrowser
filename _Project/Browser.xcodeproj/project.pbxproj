@@ -7,9 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		/* WebView ObjC */
+		9675E1FC20855F6500A4A84A /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9675E1FB20855F6500A4A84A /* Foundation.framework */; };
+		9675E1FF20857AEF00A4A84A /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9675E1FE20857AEF00A4A84A /* UIKit.framework */; };
+		B002B8721BAE420500C744AF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B002B8711BAE420500C744AF /* Assets.xcassets */; };
 		BB0001AABBCCDDEEFF0001 /* WebViewBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0002 /* WebViewBridge.m */; };
-		/* Swift Sources */
 		BB0001AABBCCDDEEFF0003 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0004 /* AppDelegate.swift */; };
 		BB0001AABBCCDDEEFF0005 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0006 /* SceneDelegate.swift */; };
 		BB0001AABBCCDDEEFF0007 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0008 /* SettingsManager.swift */; };
@@ -17,7 +18,6 @@
 		BB0001AABBCCDDEEFF000B /* FavoritesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF000C /* FavoritesManager.swift */; };
 		BB0001AABBCCDDEEFF000D /* JavaScriptExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF000E /* JavaScriptExecutor.swift */; };
 		BB0001AABBCCDDEEFF000F /* WebViewContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0010 /* WebViewContainer.swift */; };
-		BB0001AABBCCDDEEFF0011 /* CursorController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0012 /* CursorController.swift */; };
 		BB0001AABBCCDDEEFF0013 /* CursorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0014 /* CursorView.swift */; };
 		BB0001AABBCCDDEEFF0015 /* NavigationBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0016 /* NavigationBarView.swift */; };
 		BB0001AABBCCDDEEFF0017 /* NavigationBarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0018 /* NavigationBarViewModel.swift */; };
@@ -25,21 +25,13 @@
 		BB0001AABBCCDDEEFF001B /* AdvancedMenuPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF001C /* AdvancedMenuPresenter.swift */; };
 		BB0001AABBCCDDEEFF001D /* BrowserViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF001E /* BrowserViewModel.swift */; };
 		BB0001AABBCCDDEEFF001F /* BrowserViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0020 /* BrowserViewController.swift */; };
-		/* Resources */
-		B002B8721BAE420500C744AF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B002B8711BAE420500C744AF /* Assets.xcassets */; };
-		/* Cursor PNG assets */
-		3A2A7C1121E7805D0083CB13 /* go-back-left-arrow.png in Resources */ = {isa = PBXBuildFile; fileRef = 3A2A7C1121E7805DFILE0001 /* go-back-left-arrow.png */; };
-		/* Frameworks */
-		9675E1FC20855F6500A4A84A /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9675E1FB20855F6500A4A84A /* Foundation.framework */; };
-		9675E1FF20857AEF00A4A84A /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9675E1FE20857AEF00A4A84A /* UIKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		/* ObjC Bridge */
+		9675E1FB20855F6500A4A84A /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
+		9675E1FE20857AEF00A4A84A /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 		AA0001AABBCCDDEEFF0001 /* WebViewBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebViewBridge.h; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0002 /* WebViewBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WebViewBridge.m; sourceTree = "<group>"; };
-		AA0001AABBCCDDEEFF00BH /* Browser-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Browser-Bridging-Header.h"; path = "Browser-Bridging-Header.h"; sourceTree = "<group>"; };
-		/* Swift Sources */
 		AA0001AABBCCDDEEFF0004 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0006 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0008 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
@@ -47,7 +39,6 @@
 		AA0001AABBCCDDEEFF000C /* FavoritesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesManager.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF000E /* JavaScriptExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavaScriptExecutor.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0010 /* WebViewContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewContainer.swift; sourceTree = "<group>"; };
-		AA0001AABBCCDDEEFF0012 /* CursorController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorController.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0014 /* CursorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorView.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0016 /* NavigationBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationBarView.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0018 /* NavigationBarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationBarViewModel.swift; sourceTree = "<group>"; };
@@ -55,15 +46,11 @@
 		AA0001AABBCCDDEEFF001C /* AdvancedMenuPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedMenuPresenter.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF001E /* BrowserViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserViewModel.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0020 /* BrowserViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserViewController.swift; sourceTree = "<group>"; };
-		/* Existing */
+		AA0001AABBCCDDEEFF00BH /* Browser-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Browser-Bridging-Header.h"; sourceTree = "<group>"; };
 		B002B8621BAE420500C744AF /* Browser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Browser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B002B8711BAE420500C744AF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B002B8731BAE420500C744AF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B0F6B4611BAEBF9900E2F26B /* README.mdown */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.mdown; sourceTree = "<group>"; };
-		9675E1FB20855F6500A4A84A /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
-		9675E1FE20857AEF00A4A84A /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
-		/* Cursor PNG assets keep-existing refs (renamed for clarity) */
-		3A2A7C1121E7805DFILE0001 /* go-back-left-arrow.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "go-back-left-arrow.png"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,13 +110,21 @@
 			path = Browser;
 			sourceTree = "<group>";
 		};
+		B002B8651BAE420500C744AF /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				B002B8711BAE420500C744AF /* Assets.xcassets */,
+				B002B8731BAE420500C744AF /* Info.plist */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
 		CCGROUP00000001AABBCCDD /* App */ = {
 			isa = PBXGroup;
 			children = (
 				AA0001AABBCCDDEEFF0004 /* AppDelegate.swift */,
 				AA0001AABBCCDDEEFF0006 /* SceneDelegate.swift */,
 			);
-			name = App;
 			path = App;
 			sourceTree = "<group>";
 		};
@@ -141,17 +136,14 @@
 				AA0001AABBCCDDEEFF000E /* JavaScriptExecutor.swift */,
 				AA0001AABBCCDDEEFF0010 /* WebViewContainer.swift */,
 			);
-			name = WebView;
 			path = WebView;
 			sourceTree = "<group>";
 		};
 		CCGROUP00000003AABBCCDD /* Cursor */ = {
 			isa = PBXGroup;
 			children = (
-				AA0001AABBCCDDEEFF0012 /* CursorController.swift */,
 				AA0001AABBCCDDEEFF0014 /* CursorView.swift */,
 			);
-			name = Cursor;
 			path = Cursor;
 			sourceTree = "<group>";
 		};
@@ -161,7 +153,6 @@
 				AA0001AABBCCDDEEFF0016 /* NavigationBarView.swift */,
 				AA0001AABBCCDDEEFF0018 /* NavigationBarViewModel.swift */,
 			);
-			name = Navigation;
 			path = Navigation;
 			sourceTree = "<group>";
 		};
@@ -171,7 +162,6 @@
 				AA0001AABBCCDDEEFF001A /* QuickMenuPresenter.swift */,
 				AA0001AABBCCDDEEFF001C /* AdvancedMenuPresenter.swift */,
 			);
-			name = Menus;
 			path = Menus;
 			sourceTree = "<group>";
 		};
@@ -182,7 +172,6 @@
 				AA0001AABBCCDDEEFF000A /* HistoryManager.swift */,
 				AA0001AABBCCDDEEFF000C /* FavoritesManager.swift */,
 			);
-			name = Data;
 			path = Data;
 			sourceTree = "<group>";
 		};
@@ -191,7 +180,6 @@
 			children = (
 				AA0001AABBCCDDEEFF001E /* BrowserViewModel.swift */,
 			);
-			name = ViewModel;
 			path = ViewModel;
 			sourceTree = "<group>";
 		};
@@ -200,17 +188,7 @@
 			children = (
 				AA0001AABBCCDDEEFF0020 /* BrowserViewController.swift */,
 			);
-			name = ViewController;
 			path = ViewController;
-			sourceTree = "<group>";
-		};
-		B002B8651BAE420500C744AF /* Supporting Files */ = {
-			isa = PBXGroup;
-			children = (
-				B002B8711BAE420500C744AF /* Assets.xcassets */,
-				B002B8731BAE420500C744AF /* Info.plist */,
-			);
-			name = "Supporting Files";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -245,7 +223,6 @@
 				TargetAttributes = {
 					B002B8611BAE420500C744AF = {
 						CreatedOnToolsVersion = 14.0;
-						DevelopmentTeam = H7W77QXGX2;
 					};
 				};
 			};
@@ -307,7 +284,6 @@
 				BB0001AABBCCDDEEFF000B /* FavoritesManager.swift in Sources */,
 				BB0001AABBCCDDEEFF000D /* JavaScriptExecutor.swift in Sources */,
 				BB0001AABBCCDDEEFF000F /* WebViewContainer.swift in Sources */,
-				BB0001AABBCCDDEEFF0011 /* CursorController.swift in Sources */,
 				BB0001AABBCCDDEEFF0013 /* CursorView.swift in Sources */,
 				BB0001AABBCCDDEEFF0015 /* NavigationBarView.swift in Sources */,
 				BB0001AABBCCDDEEFF0017 /* NavigationBarViewModel.swift in Sources */,
@@ -379,16 +355,23 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = H7W77QXGX2;
+				CURRENT_PROJECT_VERSION = 3000;
+				DEVELOPMENT_TEAM = L74JW3HF8Y;
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
 				ENABLE_ON_DEMAND_RESOURCES = NO;
 				INFOPLIST_FILE = Browser/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = com.dreampiggy.tvbrowser;
+				INFOPLIST_KEY_CFBundleDisplayName = BrowserOS;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tydebeer.tvbrowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Browser/Browser-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TVOS_DEPLOYMENT_TARGET = 14.0;
+				TVOS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Debug;
 		};
@@ -399,16 +382,23 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = H7W77QXGX2;
+				CURRENT_PROJECT_VERSION = 3000;
+				DEVELOPMENT_TEAM = L74JW3HF8Y;
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
 				ENABLE_ON_DEMAND_RESOURCES = NO;
 				INFOPLIST_FILE = Browser/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = com.dreampiggy.tvbrowser;
+				INFOPLIST_KEY_CFBundleDisplayName = BrowserOS;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tydebeer.tvbrowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Browser/Browser-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TVOS_DEPLOYMENT_TARGET = 14.0;
+				TVOS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Release;
 		};

@@ -1,16 +1,15 @@
 import UIKit
 
-// Thin orchestration layer. Owns the view hierarchy, gesture recognizers,
-// and remote press handling. All business logic lives in BrowserViewModel.
-
 final class BrowserViewController: UIViewController {
 
-    // MARK: - Properties
+    private enum RingNavigation {
+        static let pointerSpeed: CGFloat = 520
+        static let tapStep: CGFloat = 28
+    }
 
     private let viewModel = BrowserViewModel()
     private let navBar = NavigationBarView()
     private let cursorView = CursorView()
-    private var cursorController: CursorController!
 
     private let quickMenu    = QuickMenuPresenter()
     private let advancedMenu = AdvancedMenuPresenter()
@@ -18,13 +17,15 @@ final class BrowserViewController: UIViewController {
     private var navBarTopConstraint: NSLayoutConstraint!
     private var webContainerTopConstraint: NSLayoutConstraint!
 
-    // MARK: - Lifecycle
+    private var pointerPosition = CGPoint.zero
+    private var moveDisplayLink: CADisplayLink?
+    private var moveVelocity = CGPoint.zero
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
         setupLayout()
-        setupCursor()
+        setupPointer()
         setupNavBar()
         setupGestures()
         setupMenuPresenters()
@@ -35,21 +36,20 @@ final class BrowserViewController: UIViewController {
         super.viewDidAppear(animated)
         viewModel.handleStartup()
 
-        let settings = SettingsManager.shared
-        if !settings.suppressHints {
+        if !SettingsManager.shared.suppressHints {
             advancedMenu.showHints()
         }
     }
 
-    // MARK: - Layout
+    deinit {
+        stopSmoothMove()
+    }
 
     private func setupLayout() {
-        // Web container
         let wc = viewModel.webContainer
         wc.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(wc)
 
-        // Navigation bar
         view.addSubview(navBar)
         navBarTopConstraint = navBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
         webContainerTopConstraint = wc.topAnchor.constraint(equalTo: view.topAnchor)
@@ -68,8 +68,24 @@ final class BrowserViewController: UIViewController {
 
         applyNavBarVisibility(animated: false)
 
-        // Cursor on top of everything
         view.addSubview(cursorView)
+        view.bringSubviewToFront(cursorView)
+    }
+
+    private func setupPointer() {
+        let bridge = viewModel.webContainer.bridge
+        bridge.scrollView.isScrollEnabled = true
+        bridge.webView.isUserInteractionEnabled = true
+
+        pointerPosition = CGPoint(x: view.bounds.midX, y: view.bounds.midY)
+        cursorView.moveTo(pointerPosition)
+        updatePointerHover()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        pointerPosition = clampedPointerPosition(pointerPosition)
+        cursorView.moveTo(pointerPosition)
     }
 
     private func applyNavBarVisibility(animated: Bool) {
@@ -85,46 +101,11 @@ final class BrowserViewController: UIViewController {
             webContainerTopConstraint.constant = offset
         }
         navBar.setHidden(!visible, animated: animated)
-
-        // Update cursor controller's webview origin
-        cursorController?.webViewOriginY = offset
     }
 
-    // MARK: - Cursor
-
-    private func setupCursor() {
-        cursorController = CursorController(
-            viewBounds: view.bounds,
-            jsExecutor: viewModel.webContainer.jsExecutor
-        )
-        cursorController.onPositionChanged = { [weak self] point in
-            self?.cursorView.moveTo(point)
-        }
-        cursorController.onModeChanged = { [weak self] mode in
-            guard let self else { return }
-            let sv = self.viewModel.webContainer.bridge.scrollView
-            switch mode {
-            case .cursor:
-                sv.isScrollEnabled = false
-                self.viewModel.webContainer.bridge.webView.isUserInteractionEnabled = false
-                self.cursorView.isHidden = false
-            case .scroll:
-                sv.isScrollEnabled = true
-                self.viewModel.webContainer.bridge.webView.isUserInteractionEnabled = true
-                self.cursorView.isHidden = true
-            }
-        }
-
-        cursorView.center = view.center
-        view.bringSubviewToFront(cursorView)
+    private var webViewOriginY: CGFloat {
+        SettingsManager.shared.showNavBar ? NavigationBarView.barHeight : 0
     }
-
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        cursorController.updateBounds(view.bounds)
-    }
-
-    // MARK: - Nav Bar
 
     private func setupNavBar() {
         navBar.onBack       = { [weak self] in self?.viewModel.goBack() }
@@ -139,40 +120,52 @@ final class BrowserViewController: UIViewController {
         navBar.onMenu       = { [weak self] in self?.showAdvancedMenu() }
     }
 
-    // MARK: - Gestures
-
     private func setupGestures() {
-        // Double-tap Select: toggle cursor/scroll mode
-        let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTapSelect))
-        doubleTap.numberOfTapsRequired = 2
-        doubleTap.allowedPressTypes = [NSNumber(value: UIPress.PressType.select.rawValue)]
-        view.addGestureRecognizer(doubleTap)
+        let singleTap = UITapGestureRecognizer(target: self, action: #selector(handleSingleTapSelect))
+        singleTap.numberOfTapsRequired = 1
+        singleTap.allowedPressTypes = [NSNumber(value: UIPress.PressType.select.rawValue)]
+        view.addGestureRecognizer(singleTap)
 
-        // Double-tap Play/Pause: advanced menu
         let ppDouble = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTapPlayPause))
         ppDouble.numberOfTapsRequired = 2
         ppDouble.allowedPressTypes = [NSNumber(value: UIPress.PressType.playPause.rawValue)]
         view.addGestureRecognizer(ppDouble)
     }
 
-    @objc private func handleDoubleTapSelect(_ gr: UITapGestureRecognizer) {
-        if gr.state == .ended { cursorController.toggleMode() }
+    @objc private func handleSingleTapSelect(_ gr: UITapGestureRecognizer) {
+        guard gr.state == .ended else { return }
+        handlePointerSelectPress()
     }
 
     @objc private func handleDoubleTapPlayPause(_ gr: UITapGestureRecognizer) {
         if gr.state == .ended { showAdvancedMenu() }
     }
 
-    // MARK: - Remote Button Handling
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        guard presentedViewController == nil,
+              let press = presses.first,
+              isDirectionalPress(press.type) else {
+            super.pressesBegan(presses, with: event)
+            return
+        }
+
+        moveVelocity = moveVelocity(for: press.type)
+        applyPointerStep()
+        startSmoothMove()
+    }
 
     override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        if let press = presses.first, isDirectionalPress(press.type) {
+            stopSmoothMove()
+            return
+        }
+
         guard let press = presses.first else {
             super.pressesEnded(presses, with: event)
             return
         }
 
         switch press.type {
-
         case .menu:
             if presentedViewController != nil {
                 dismiss(animated: true)
@@ -181,39 +174,108 @@ final class BrowserViewController: UIViewController {
             } else {
                 confirmExit()
             }
-
         case .select:
-            guard cursorController.mode == .cursor else { return }
-            handleCursorSelectPress()
-
+            super.pressesEnded(presses, with: event)
         case .playPause:
             if presentedViewController != nil {
                 dismiss(animated: true)
             } else {
                 showQuickMenu()
             }
-
         default:
             super.pressesEnded(presses, with: event)
         }
     }
 
-    private func handleCursorSelectPress() {
-        let cursorPos = cursorController.position
-        let navBarHeight = SettingsManager.shared.showNavBar ? NavigationBarView.barHeight : 0
-
-        // Check if cursor is over nav bar buttons
-        if cursorPos.y < navBarHeight {
-            handleNavBarCursorClick(cursorPos: cursorPos)
-            return
-        }
-
-        viewModel.handleCursorClick(at: cursorPos, webViewOriginY: navBarHeight)
+    override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        stopSmoothMove()
+        super.pressesCancelled(presses, with: event)
     }
 
-    private func handleNavBarCursorClick(cursorPos: CGPoint) {
-        // Convert cursor position to nav bar coordinate space
-        let navBarPoint = view.convert(cursorPos, to: navBar)
+    private func isDirectionalPress(_ type: UIPress.PressType) -> Bool {
+        switch type {
+        case .upArrow, .downArrow, .leftArrow, .rightArrow: return true
+        default: return false
+        }
+    }
+
+    private func moveVelocity(for type: UIPress.PressType) -> CGPoint {
+        switch type {
+        case .upArrow:    return CGPoint(x: 0, y: -RingNavigation.pointerSpeed)
+        case .downArrow:  return CGPoint(x: 0, y: RingNavigation.pointerSpeed)
+        case .leftArrow:  return CGPoint(x: -RingNavigation.pointerSpeed, y: 0)
+        case .rightArrow: return CGPoint(x: RingNavigation.pointerSpeed, y: 0)
+        default:          return .zero
+        }
+    }
+
+    private func startSmoothMove() {
+        guard moveDisplayLink == nil else { return }
+        let link = CADisplayLink(target: self, selector: #selector(handleMoveTick(_:)))
+        link.add(to: .main, forMode: .common)
+        moveDisplayLink = link
+    }
+
+    private func stopSmoothMove() {
+        moveDisplayLink?.invalidate()
+        moveDisplayLink = nil
+        moveVelocity = .zero
+    }
+
+    @objc private func handleMoveTick(_ link: CADisplayLink) {
+        let dt = CGFloat(link.duration)
+        movePointerBy(dx: moveVelocity.x * dt, dy: moveVelocity.y * dt)
+    }
+
+    private func applyPointerStep() {
+        let step = RingNavigation.tapStep
+        if moveVelocity.y < 0 { movePointerBy(dx: 0, dy: -step) }
+        else if moveVelocity.y > 0 { movePointerBy(dx: 0, dy: step) }
+        else if moveVelocity.x < 0 { movePointerBy(dx: -step, dy: 0) }
+        else if moveVelocity.x > 0 { movePointerBy(dx: step, dy: 0) }
+    }
+
+    private func movePointerBy(dx: CGFloat, dy: CGFloat) {
+        pointerPosition = clampedPointerPosition(
+            CGPoint(x: pointerPosition.x + dx, y: pointerPosition.y + dy)
+        )
+        cursorView.moveTo(pointerPosition)
+        updatePointerHover()
+    }
+
+    private func clampedPointerPosition(_ point: CGPoint) -> CGPoint {
+        CGPoint(
+            x: min(max(point.x, 0), view.bounds.width),
+            y: min(max(point.y, 0), view.bounds.height)
+        )
+    }
+
+    private func updatePointerHover() {
+        let webPoint = CGPoint(x: pointerPosition.x, y: pointerPosition.y - webViewOriginY)
+        guard webPoint.y >= 0 else {
+            NotificationCenter.default.post(
+                name: .cursorHoverStateChanged,
+                object: nil,
+                userInfo: [CursorHoverKey.isClickable: false]
+            )
+            return
+        }
+        Task {
+            await viewModel.webContainer.jsExecutor.schedulePointerUpdate(at: webPoint)
+        }
+    }
+
+    private func handlePointerSelectPress() {
+        let navBarHeight = webViewOriginY
+        if pointerPosition.y < navBarHeight {
+            handleNavBarPointerClick()
+            return
+        }
+        viewModel.handlePointerClick(at: pointerPosition, webViewOriginY: navBarHeight)
+    }
+
+    private func handleNavBarPointerClick() {
+        let navBarPoint = view.convert(pointerPosition, to: navBar)
         if navBar.backButton.frame.contains(navBarPoint) {
             viewModel.goBack()
         } else if navBar.refreshButton.frame.contains(navBarPoint) {
@@ -229,20 +291,6 @@ final class BrowserViewController: UIViewController {
             showAdvancedMenu()
         }
     }
-
-    // MARK: - Touch (Cursor movement)
-
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        cursorController.touchesBegan()
-    }
-
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-        let location = touch.location(in: view)
-        cursorController.touchesMoved(location: location)
-    }
-
-    // MARK: - Menus
 
     private func setupMenuPresenters() {
         quickMenu.viewController    = self
@@ -271,9 +319,6 @@ final class BrowserViewController: UIViewController {
         advancedMenu.currentURLProvider   = { [weak self] in self?.viewModel.currentURL }
         advancedMenu.currentTitleProvider = { [weak self] in self?.viewModel.currentTitle }
 
-        viewModel.onRequestTextInput = { [weak self] fieldInfo, point, scale in
-            self?.showTextInput(for: fieldInfo, at: point, scale: scale)
-        }
         viewModel.onLoadError = { [weak self] error, requestURL in
             self?.showLoadError(error, requestURL: requestURL)
         }
@@ -296,8 +341,6 @@ final class BrowserViewController: UIViewController {
             currentURL: viewModel.currentURL
         )
     }
-
-    // MARK: - URL Input
 
     private func showURLInput() {
         let alert = UIAlertController(title: "Enter URL or Search", message: nil, preferredStyle: .alert)
@@ -323,43 +366,6 @@ final class BrowserViewController: UIViewController {
         }
     }
 
-    // MARK: - Text Field Input
-
-    private func showTextInput(for field: JavaScriptExecutor.FieldInfo, at point: CGPoint, scale: CGFloat) {
-        let title = field.title.isEmpty ? "Input" : field.title.capitalized
-        let placeholder = field.placeholder.isEmpty ? "Enter value" : field.placeholder.capitalized
-        let alert = UIAlertController(title: title, message: nil, preferredStyle: .alert)
-        alert.addTextField { tf in
-            tf.placeholder = placeholder
-            tf.text = field.value
-            tf.isSecureTextEntry = field.type == "password"
-            tf.keyboardType = Self.keyboardType(for: field.type)
-        }
-        alert.addAction(UIAlertAction(title: "Done", style: .default) { [weak self, weak alert] _ in
-            let value = alert?.textFields?.first?.text ?? ""
-            self?.viewModel.submitTextInput(value: value, at: point, scale: scale, submit: false)
-        })
-        alert.addAction(UIAlertAction(title: "Submit", style: .default) { [weak self, weak alert] _ in
-            let value = alert?.textFields?.first?.text ?? ""
-            self?.viewModel.submitTextInput(value: value, at: point, scale: scale, submit: true)
-        })
-        alert.addAction(UIAlertAction(title: nil, style: .cancel))
-        present(alert, animated: true) {
-            if field.value.isEmpty { alert.textFields?.first?.becomeFirstResponder() }
-        }
-    }
-
-    private static func keyboardType(for fieldType: String) -> UIKeyboardType {
-        switch fieldType {
-        case "email":    return .emailAddress
-        case "url":      return .URL
-        case "tel", "number", "date", "datetime", "datetime-local": return .numbersAndPunctuation
-        default:         return .default
-        }
-    }
-
-    // MARK: - Error Handling
-
     private func showLoadError(_ error: Error, requestURL: String?) {
         let alert = UIAlertController(
             title: "Could Not Load Page",
@@ -383,19 +389,14 @@ final class BrowserViewController: UIViewController {
         present(alert, animated: true)
     }
 
-    // MARK: - Exit
-
     private func confirmExit() {
         let alert = UIAlertController(title: "Exit tvOS Browser?", message: nil, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Exit", style: .destructive) { _ in
-            // Graceful suspension — preferred over exit()
             UIApplication.shared.perform(NSSelectorFromString("suspend"))
         })
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         present(alert, animated: true)
     }
-
-    // MARK: - Bind ViewModel
 
     private func bindViewModel() {
         viewModel.navBarViewModel.onStateChanged = { [weak self] in

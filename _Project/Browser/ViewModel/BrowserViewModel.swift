@@ -8,7 +8,6 @@ final class BrowserViewModel {
     let webContainer: WebViewContainer
     let navBarViewModel = NavigationBarViewModel()
 
-    var onRequestTextInput:  ((JavaScriptExecutor.FieldInfo, CGPoint, CGFloat) -> Void)?
     var onLoadError:         ((Error, String?) -> Void)?
     var onShowHints:         (() -> Void)?
 
@@ -31,7 +30,10 @@ final class BrowserViewModel {
                     canGoBack: self.webContainer.bridge.canGoBack,
                     canGoForward: self.webContainer.bridge.canGoForward
                 )
-                Task { await self.webContainer.jsExecutor.updateFontSize(self.settings.textFontSize) }
+                Task {
+                    await self.webContainer.jsExecutor.installPointerStyles()
+                    await self.webContainer.jsExecutor.updateFontSize(self.settings.textFontSize)
+                }
             }
         }
         bridge.onFailLoad = { [weak self] error, requestURL in
@@ -115,42 +117,11 @@ final class BrowserViewModel {
         webContainer.bridge.clearCookies {}
     }
 
-    // MARK: - Cursor Click
-
-    func handleCursorClick(at screenPoint: CGPoint, webViewOriginY: CGFloat) {
+    func handlePointerClick(at screenPoint: CGPoint, webViewOriginY: CGFloat) {
         let adjustedPoint = CGPoint(x: screenPoint.x, y: screenPoint.y - webViewOriginY)
         guard adjustedPoint.y >= 0 else { return }
-
-        Task { [weak self] in
-            guard let self else { return }
-            let executor = self.webContainer.jsExecutor
-
-            // Fetch inner width for accurate scale calculation
-            let innerWidth = await executor.pageInnerWidth()
-            let viewWidth = await MainActor.run { self.webContainer.bridge.webView.frame.width }
-            let scale = innerWidth > 0 ? viewWidth / innerWidth : 1.0
-
-            // Click the element
-            try? await executor.click(at: adjustedPoint, pageScale: scale)
-
-            // Check if a text field was clicked — show input alert if so
-            if let fieldInfo = try? await executor.fieldInfo(at: adjustedPoint, pageScale: scale) {
-                await MainActor.run {
-                    self.onRequestTextInput?(fieldInfo, adjustedPoint, scale)
-                }
-            }
-        }
-    }
-
-    func submitTextInput(value: String, at point: CGPoint, scale: CGFloat, submit: Bool) {
-        Task { [weak self] in
-            guard let self else { return }
-            let executor = self.webContainer.jsExecutor
-            if submit {
-                try? await executor.submitForm(at: point, pageScale: scale, value: value)
-            } else {
-                try? await executor.setFieldValue(value, at: point, pageScale: scale)
-            }
+        Task {
+            try? await webContainer.jsExecutor.click(at: adjustedPoint)
         }
     }
 

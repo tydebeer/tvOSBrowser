@@ -191,9 +191,10 @@ final class AdvancedMenuPresenter {
         guard let vc = viewController else { return }
         let msg = """
         Remote Controls:
-        • Swipe touch area → move cursor
-        • Double-tap touch area → toggle cursor / scroll mode
-        • Single press (Select) in cursor mode → click element
+        • Ring / directional press → move pointer (hold for smooth movement)
+        • Swipe center clickpad → scroll the page
+        • Select → click the item under the pointer
+        • Pointer turns into a hand over clickable items; links get a blue outline
         • Menu button → go back (or exit if no history)
         • Play/Pause (single tap) → Quick Menu
         • Play/Pause (double tap) → Advanced Menu

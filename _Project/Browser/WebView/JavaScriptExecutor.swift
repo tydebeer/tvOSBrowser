@@ -1,34 +1,97 @@
 import UIKit
 
-// Async JavaScript executor with frame-rate debounced hover detection.
-// Hover checks run on every touchesMoved — debouncing to 16ms prevents
-// flooding WKWebView with concurrent evaluateJavaScript calls.
-
 actor JavaScriptExecutor {
 
     weak var bridge: WebViewBridge?
-    private var pendingHoverTask: Task<Void, Never>?
+    private var pendingPointerTask: Task<Void, Never>?
+
+    private static let clickableSelector =
+        "a,button,input,select,textarea,label,[role=\"button\"],[role=\"link\"],[onclick],[tabindex]:not([tabindex=\"-1\"])"
 
     init(bridge: WebViewBridge) {
         self.bridge = bridge
     }
 
-    // MARK: - Hover Detection (debounced)
+    func installPointerStyles() async {
+        let js = """
+        (function() {
+            if (window.__tvbPointerStylesInstalled) return;
+            window.__tvbPointerStylesInstalled = true;
+            var style = document.createElement('style');
+            style.textContent = '[data-tvb-pointer-hover]{outline:3px solid rgba(0,122,255,0.9)!important;outline-offset:2px!important;}';
+            (document.head || document.documentElement).appendChild(style);
+        })()
+        """
+        _ = try? await evaluateJavaScript(js)
+    }
 
-    func scheduleHover(at point: CGPoint, pageScale: CGFloat) {
-        pendingHoverTask?.cancel()
-        pendingHoverTask = Task { [weak self] in
+    func schedulePointerUpdate(at viewPoint: CGPoint) {
+        pendingPointerTask?.cancel()
+        pendingPointerTask = Task { [weak self] in
             guard let self else { return }
             do { try await Task.sleep(nanoseconds: 16_000_000) } catch { return }
             guard !Task.isCancelled else { return }
-            await self.executeHover(at: point, pageScale: pageScale)
+            await self.updatePointer(at: viewPoint)
         }
     }
 
-    private func executeHover(at point: CGPoint, pageScale: CGFloat) async {
-        let x = Int(point.x / pageScale)
-        let y = Int(point.y / pageScale)
-        let js = "document.elementFromPoint(\(x),\(y))?.closest('a,button,input,[role=\"button\"],[onclick]') !== null"
+    private func updatePointer(at viewPoint: CGPoint) async {
+        let (x, y) = await pageCoordinates(for: viewPoint)
+        let js = """
+        (function() {
+            var x = \(x), y = \(y);
+            if (window.__tvbHoverEl) {
+                window.__tvbHoverEl.removeAttribute('data-tvb-pointer-hover');
+                window.__tvbHoverEl = null;
+            }
+            var el = document.elementFromPoint(x, y);
+            if (!el) return false;
+
+            var events = ['mouseover', 'mouseenter', 'mousemove'];
+            var chain = [];
+            var node = el;
+            while (node && node !== document.documentElement) {
+                chain.unshift(node);
+                node = node.parentElement;
+            }
+            for (var i = 0; i < chain.length; i++) {
+                for (var j = 0; j < events.length; j++) {
+                    chain[i].dispatchEvent(new MouseEvent(events[j], {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window,
+                        clientX: x,
+                        clientY: y
+                    }));
+                }
+            }
+            document.dispatchEvent(new MouseEvent('mousemove', {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                clientX: x,
+                clientY: y
+            }));
+
+            var target = el.closest('\(Self.clickableSelector)');
+            if (!target) {
+                node = el;
+                while (node && node !== document.documentElement) {
+                    if (window.getComputedStyle(node).cursor === 'pointer') {
+                        target = node;
+                        break;
+                    }
+                    node = node.parentElement;
+                }
+            }
+            if (target) {
+                target.setAttribute('data-tvb-pointer-hover', '');
+                window.__tvbHoverEl = target;
+                return true;
+            }
+            return false;
+        })()
+        """
         let result = try? await evaluateJavaScript(js)
         let isClickable = (result as? Bool) ?? false
         await MainActor.run {
@@ -40,76 +103,39 @@ actor JavaScriptExecutor {
         }
     }
 
-    // MARK: - Click Handling
-
-    struct FieldInfo {
-        let type: String
-        let title: String
-        let placeholder: String
-        let value: String
-    }
-
-    func click(at point: CGPoint, pageScale: CGFloat) async throws {
-        let x = Int(point.x / pageScale)
-        let y = Int(point.y / pageScale)
-        _ = try await evaluateJavaScript("document.elementFromPoint(\(x),\(y))?.click()")
-    }
-
-    func fieldInfo(at point: CGPoint, pageScale: CGFloat) async throws -> FieldInfo? {
-        let x = Int(point.x / pageScale)
-        let y = Int(point.y / pageScale)
-        // Batch all field queries into one round-trip
+    func click(at viewPoint: CGPoint) async throws {
+        let (x, y) = await pageCoordinates(for: viewPoint)
         let js = """
         (function() {
-            var el = document.elementFromPoint(\(x),\(y));
-            if (!el) return null;
-            var type = (el.type || '').toLowerCase();
-            var inputTypes = ['text','email','password','url','search','tel','number','date','datetime','datetime-local','month','week','time'];
-            if (inputTypes.indexOf(type) === -1) return null;
-            return JSON.stringify({type: type, title: el.title || '', placeholder: el.placeholder || '', value: el.value || ''});
-        })()
-        """
-        guard let raw = try await evaluateJavaScript(js) as? String,
-              let data = raw.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: String]
-        else { return nil }
+            var x = \(x), y = \(y);
+            var el = document.elementFromPoint(x, y);
+            if (!el) return false;
 
-        return FieldInfo(
-            type: json["type"] ?? "",
-            title: json["title"] ?? "",
-            placeholder: json["placeholder"] ?? "",
-            value: json["value"] ?? ""
-        )
-    }
-
-    func setFieldValue(_ value: String, at point: CGPoint, pageScale: CGFloat) async throws {
-        let x = Int(point.x / pageScale)
-        let y = Int(point.y / pageScale)
-        // JSON-encode the value to handle apostrophes, quotes, and special chars safely
-        let safeValue = jsonEncode(value)
-        let js = """
-        (function() {
-            var el = document.elementFromPoint(\(x),\(y));
-            if (el) { el.value = \(safeValue); }
-        })()
-        """
-        _ = try await evaluateJavaScript(js)
-    }
-
-    func submitForm(at point: CGPoint, pageScale: CGFloat, value: String) async throws {
-        let x = Int(point.x / pageScale)
-        let y = Int(point.y / pageScale)
-        let safeValue = jsonEncode(value)
-        let js = """
-        (function() {
-            var el = document.elementFromPoint(\(x),\(y));
-            if (!el) return;
-            el.value = \(safeValue);
-            if (el.form) {
-                var event = new Event('submit', {bubbles: true, cancelable: true});
-                el.form.dispatchEvent(event);
-                if (!event.defaultPrevented) el.form.submit();
+            var target = el.closest('\(Self.clickableSelector)');
+            if (!target) {
+                var node = el;
+                while (node && node !== document.documentElement) {
+                    if (window.getComputedStyle(node).cursor === 'pointer') {
+                        target = node;
+                        break;
+                    }
+                    node = node.parentElement;
+                }
             }
+            if (!target) target = el;
+
+            var events = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
+            for (var i = 0; i < events.length; i++) {
+                target.dispatchEvent(new MouseEvent(events[i], {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window,
+                    clientX: x,
+                    clientY: y
+                }));
+            }
+            if (typeof target.click === 'function') target.click();
+            return true;
         })()
         """
         _ = try await evaluateJavaScript(js)
@@ -120,12 +146,22 @@ actor JavaScriptExecutor {
         _ = try? await evaluateJavaScript(js)
     }
 
-    func pageInnerWidth() async -> CGFloat {
+    func pageScale() async -> CGFloat {
+        let innerWidth = await pageInnerWidth()
+        let webViewBridge = bridge
+        let viewWidth = await MainActor.run { webViewBridge?.webView.frame.width ?? 0 }
+        return innerWidth > 0 ? viewWidth / innerWidth : 1.0
+    }
+
+    private func pageInnerWidth() async -> CGFloat {
         let result = try? await evaluateJavaScript("window.innerWidth")
         return CGFloat((result as? Int) ?? 0)
     }
 
-    // MARK: - Private
+    private func pageCoordinates(for viewPoint: CGPoint) async -> (Int, Int) {
+        let scale = await pageScale()
+        return (Int(viewPoint.x / scale), Int(viewPoint.y / scale))
+    }
 
     private func evaluateJavaScript(_ js: String) async throws -> Any? {
         guard let bridge else { return nil }
@@ -136,27 +172,4 @@ actor JavaScriptExecutor {
             }
         }
     }
-
-    private func jsonEncode(_ string: String) -> String {
-        if let data = try? JSONSerialization.data(withJSONObject: string),
-           let encoded = String(data: data, encoding: .utf8) {
-            return encoded
-        }
-        // Fallback: basic escaping
-        let escaped = string
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "'\(escaped)'"
-    }
-}
-
-// MARK: - Notification Constants
-
-extension Notification.Name {
-    static let cursorHoverStateChanged = Notification.Name("cursorHoverStateChanged")
-}
-
-enum CursorHoverKey {
-    static let isClickable = "isClickable"
 }
