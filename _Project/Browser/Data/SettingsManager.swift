@@ -23,7 +23,7 @@ final class SettingsManager {
     static let desktopUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 12_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15"
 
     var homepage: String {
-        get { defaults.string(forKey: Keys.homepage) ?? "https://flixtor.to" }
+        get { defaults.string(forKey: Keys.homepage) ?? "https://flixtor.to/watch/tv/4616594/hilda/season/1/episode/8" }
         set { defaults.set(newValue, forKey: Keys.homepage) }
     }
 
