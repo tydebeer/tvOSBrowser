@@ -74,7 +74,7 @@ final class BrowserViewModel {
     }
 
     func loadHomepage() {
-        showStartPage()
+        load(rawInput: settings.homepage)
     }
 
     func goBack()    { webContainer.bridge.goBack() }

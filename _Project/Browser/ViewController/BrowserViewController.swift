@@ -25,6 +25,7 @@ final class BrowserViewController: GCEventViewController {
 
     private var navBarTopConstraint: NSLayoutConstraint!
     private var webContainerTopConstraint: NSLayoutConstraint!
+    private var startPageTopConstraint: NSLayoutConstraint!
 
     private var pointerPosition = CGPoint.zero
     private var moveDisplayLink: CADisplayLink?
@@ -38,6 +39,7 @@ final class BrowserViewController: GCEventViewController {
         view.backgroundColor = DSColor.background
         setupLayout()
         setupStartPage()
+        applyNavBarVisibility(animated: false)
         setupPointer()
         setupClickpad()
         setupNavBar()
@@ -82,9 +84,6 @@ final class BrowserViewController: GCEventViewController {
             webContainerTopConstraint,
         ])
 
-        applyNavBarVisibility(animated: false)
-        startPageTopConstraint.constant = SettingsManager.shared.showNavBar ? NavigationBarView.barHeight : 0
-
         clickpadCaptureView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(clickpadCaptureView)
         NSLayoutConstraint.activate([
@@ -98,8 +97,6 @@ final class BrowserViewController: GCEventViewController {
         view.bringSubviewToFront(navBar)
         view.bringSubviewToFront(cursorView)
     }
-
-    private var startPageTopConstraint: NSLayoutConstraint!
 
     private func setupStartPage() {
         addChild(startPageVC)

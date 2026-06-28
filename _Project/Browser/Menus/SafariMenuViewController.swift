@@ -42,7 +42,7 @@ final class SafariMenuViewController: UIViewController {
     private let sheetView = UIView()
     private let materialView: UIVisualEffectView
     private let titleLabel = UILabel()
-    private let tableView = UITableView(frame: .zero, style: .insetGrouped)
+    private let tableView = UITableView(frame: .zero, style: .grouped)
     private var sections: [SafariMenuSection] = []
 
     init(title: String, sections: [SafariMenuSection]) {
@@ -86,7 +86,6 @@ final class SafariMenuViewController: UIViewController {
         sheetView.addSubview(titleLabel)
 
         tableView.backgroundColor = .clear
-        tableView.separatorColor = DSColor.separator
         tableView.delegate = self
         tableView.dataSource = self
         tableView.register(SafariMenuCell.self, forCellReuseIdentifier: SafariMenuCell.reuseID)

@@ -246,7 +246,7 @@ private final class StartPageTileView: UIView {
         translatesAutoresizingMaskIntoConstraints = false
 
         iconContainer.backgroundColor = DSColor.fillTertiary
-        DSMetrics.continuousCorners(iconContainer, radius: size * 0.22)
+        DSMetrics.continuousCorners(iconContainer, radius: tileSize * 0.22)
         iconContainer.translatesAutoresizingMaskIntoConstraints = false
 
         let letter = UILabel()

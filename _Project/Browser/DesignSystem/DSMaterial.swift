@@ -10,24 +10,7 @@ enum DSMaterial {
     }
 
     static func makeView(tier: Tier = .chrome) -> UIVisualEffectView {
-        let effect: UIBlurEffect
-        switch tier {
-        case .thin:
-            effect = UIBlurEffect(style: .systemThinMaterial)
-        case .regular:
-            effect = UIBlurEffect(style: .systemMaterial)
-        case .thick:
-            effect = UIBlurEffect(style: .systemThickMaterial)
-        case .chrome:
-            if #available(tvOS 13.0, *) {
-                effect = UIBlurEffect(style: .systemChromeMaterial)
-            } else {
-                effect = UIBlurEffect(style: .regular)
-            }
-        }
-        let view = UIVisualEffectView(effect: effect)
-        view.translatesAutoresizingMaskIntoConstraints = false
-        return view
+        DSMaterialView(tier: tier)
     }
 
     static func install(in container: UIView, tier: Tier = .chrome) -> UIVisualEffectView {
@@ -40,5 +23,39 @@ enum DSMaterial {
             material.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
         return material
+    }
+
+    static func blurStyle(for tier: Tier, isDark: Bool) -> UIBlurEffect.Style {
+        switch tier {
+        case .thin:
+            return isDark ? .dark : .extraLight
+        case .regular:
+            return .regular
+        case .thick:
+            return isDark ? .dark : .light
+        case .chrome:
+            return .regular
+        }
+    }
+}
+
+private final class DSMaterialView: UIVisualEffectView {
+
+    private let tier: DSMaterial.Tier
+
+    init(tier: DSMaterial.Tier) {
+        self.tier = tier
+        let isDark = UITraitCollection.current.userInterfaceStyle == .dark
+        super.init(effect: UIBlurEffect(style: DSMaterial.blurStyle(for: tier, isDark: isDark)))
+        translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard traitCollection.userInterfaceStyle != previousTraitCollection?.userInterfaceStyle else { return }
+        let isDark = traitCollection.userInterfaceStyle == .dark
+        effect = UIBlurEffect(style: DSMaterial.blurStyle(for: tier, isDark: isDark))
     }
 }
