@@ -307,7 +307,6 @@ final class BrowserViewController: UIViewController {
             self?.applyNavBarVisibility(animated: true)
         }
         advancedMenu.onToggleMobileMode = { [weak self] in self?.viewModel.toggleMobileMode() }
-        advancedMenu.onToggleScaleToFit = { [weak self] in self?.viewModel.toggleScaleToFit() }
         advancedMenu.onIncreaseFontSize = { [weak self] in self?.viewModel.increaseFontSize() }
         advancedMenu.onDecreaseFontSize = { [weak self] in self?.viewModel.decreaseFontSize() }
         advancedMenu.onClearCache       = { [weak self] in self?.viewModel.clearCache() }
@@ -337,7 +336,6 @@ final class BrowserViewController: UIViewController {
         advancedMenu.present(
             navBarVisible: settings.showNavBar,
             isMobileMode: settings.isMobileMode,
-            scaleToFit: settings.scaleToFit,
             currentURL: viewModel.currentURL
         )
     }

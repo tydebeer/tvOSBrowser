@@ -8,8 +8,7 @@ final class BrowserViewModel {
     let webContainer: WebViewContainer
     let navBarViewModel = NavigationBarViewModel()
 
-    var onLoadError:         ((Error, String?) -> Void)?
-    var onShowHints:         (() -> Void)?
+    var onLoadError: ((Error, String?) -> Void)?
 
     private let settings = SettingsManager.shared
 
@@ -86,17 +85,9 @@ final class BrowserViewModel {
         settings.savedURLtoReopen = urlToReopen
         webContainer.bridge.clearCookies {
             DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                // Recreating the webview isn't possible without a full rebuild.
-                // Reload the page — user agent change takes effect on next load.
-                self.webContainer.bridge.reload()
+                self?.webContainer.bridge.reload()
             }
         }
-    }
-
-    func toggleScaleToFit() {
-        settings.scaleToFit = !settings.scaleToFit
-        webContainer.bridge.reload()
     }
 
     func increaseFontSize() {

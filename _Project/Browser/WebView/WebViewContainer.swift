@@ -28,9 +28,4 @@ final class WebViewContainer: UIView {
             wv.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
     }
-
-    // Called after font size or scale settings change
-    func applySettings() {
-        Task { await jsExecutor.updateFontSize(SettingsManager.shared.textFontSize) }
-    }
 }

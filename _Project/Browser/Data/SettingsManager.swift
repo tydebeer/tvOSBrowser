@@ -12,7 +12,6 @@ final class SettingsManager {
         static let textFontSize      = "TextFontSize"
         static let isMobileMode      = "MobileMode"
         static let showNavBar        = "ShowTopNavigationBar"
-        static let scaleToFit        = "ScalePagesToFit"
         static let suppressHints     = "DontShowHintsOnLaunch"
         static let savedURLtoReopen  = "savedURLtoReopen"
         static let userAgent         = "UserAgent"
@@ -46,11 +45,6 @@ final class SettingsManager {
             return defaults.bool(forKey: Keys.showNavBar)
         }
         set { defaults.set(newValue, forKey: Keys.showNavBar) }
-    }
-
-    var scaleToFit: Bool {
-        get { defaults.bool(forKey: Keys.scaleToFit) }
-        set { defaults.set(newValue, forKey: Keys.scaleToFit) }
     }
 
     var suppressHints: Bool {

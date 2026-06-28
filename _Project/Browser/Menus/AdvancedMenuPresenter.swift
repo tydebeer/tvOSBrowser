@@ -11,7 +11,6 @@ final class AdvancedMenuPresenter {
     var onSetHomepage:      (() -> Void)?
     var onToggleNavBar:     (() -> Void)?
     var onToggleMobileMode: (() -> Void)?
-    var onToggleScaleToFit: (() -> Void)?
     var onIncreaseFontSize: (() -> Void)?
     var onDecreaseFontSize: (() -> Void)?
     var onClearCache:       (() -> Void)?
@@ -25,7 +24,6 @@ final class AdvancedMenuPresenter {
     func present(
         navBarVisible: Bool,
         isMobileMode: Bool,
-        scaleToFit: Bool,
         currentURL: String?
     ) {
         guard let vc = viewController else { return }
@@ -60,10 +58,6 @@ final class AdvancedMenuPresenter {
         let modeTitle = isMobileMode ? "Switch to Desktop Mode" : "Switch to Mobile Mode"
         alert.addAction(UIAlertAction(title: modeTitle, style: .default) { [weak self] _ in
             self?.onToggleMobileMode?()
-        })
-        let scaleTitle = scaleToFit ? "Stop Scaling to Fit" : "Scale Pages to Fit"
-        alert.addAction(UIAlertAction(title: scaleTitle, style: .default) { [weak self] _ in
-            self?.onToggleScaleToFit?()
         })
         alert.addAction(UIAlertAction(title: "Increase Font Size", style: .default) { [weak self] _ in
             self?.onIncreaseFontSize?()
@@ -116,7 +110,6 @@ final class AdvancedMenuPresenter {
         alert.addAction(UIAlertAction(title: nil, style: .cancel) { [weak self] _ in
             self?.present(navBarVisible: SettingsManager.shared.showNavBar,
                           isMobileMode: SettingsManager.shared.isMobileMode,
-                          scaleToFit: SettingsManager.shared.scaleToFit,
                           currentURL: nil)
         })
         vc.present(alert, animated: true)
