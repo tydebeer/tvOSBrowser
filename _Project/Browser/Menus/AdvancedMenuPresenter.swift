@@ -185,7 +185,8 @@ final class AdvancedMenuPresenter {
         let msg = """
         Remote Controls:
         • Ring / directional press → move pointer (hold for smooth movement)
-        • Swipe center clickpad → scroll the page
+        • Swipe center clickpad → move pointer (drag on the touch surface)
+        • Move pointer to screen edge → page scrolls in that direction
         • Select → click the item under the pointer
         • Pointer turns into a hand over clickable items; links get a blue outline
         • Menu button → go back (or exit if no history)

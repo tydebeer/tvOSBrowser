@@ -31,8 +31,9 @@ How to Use tvOSBrowser
 =============
 
 Quick start:
-- Press the outer ring (or swipe the center clickpad) to move the pointer; swipe also scrolls the page.
-- Select → click the item under the pointer.
+- Press the outer ring (or swipe the center clickpad) to move the pointer.
+- Move the pointer to a screen edge to scroll the page.
+- Press Select to click the item under the pointer.
 - Single tap the Play/Pause button to show the Quick Menu, with: input URLs, search Google, reload the page, or navigate back.
 - Double tap the Play/Pause button to display the Advanced Menu, with: Favorites, History, set/open homepage, change user agent, clear cache, and clear cookies and more.
 

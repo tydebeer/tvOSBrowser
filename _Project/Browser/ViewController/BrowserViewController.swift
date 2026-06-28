@@ -1,15 +1,23 @@
 import UIKit
+import GameController
 
-final class BrowserViewController: UIViewController {
+final class BrowserViewController: GCEventViewController {
 
     private enum RingNavigation {
-        static let pointerSpeed: CGFloat = 520
-        static let tapStep: CGFloat = 28
+        static let pointerSpeed: CGFloat = 300
+        static let tapNudge: CGFloat = 8
+        static let holdDelay: TimeInterval = 0.1
+    }
+
+    private enum EdgeScroll {
+        static let margin: CGFloat = 56
+        static let speed: CGFloat = 12
     }
 
     private let viewModel = BrowserViewModel()
     private let navBar = NavigationBarView()
     private let cursorView = CursorView()
+    private let clickpadCaptureView = ClickpadCaptureView()
 
     private let quickMenu    = QuickMenuPresenter()
     private let advancedMenu = AdvancedMenuPresenter()
@@ -20,12 +28,16 @@ final class BrowserViewController: UIViewController {
     private var pointerPosition = CGPoint.zero
     private var moveDisplayLink: CADisplayLink?
     private var moveVelocity = CGPoint.zero
+    private var holdDelayTimer: Timer?
+    private var isContinuousMoveActive = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        controllerUserInteractionEnabled = false
         view.backgroundColor = .black
         setupLayout()
         setupPointer()
+        setupClickpad()
         setupNavBar()
         setupGestures()
         setupMenuPresenters()
@@ -34,6 +46,7 @@ final class BrowserViewController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        view.becomeFirstResponder()
         viewModel.handleStartup()
 
         if !SettingsManager.shared.suppressHints {
@@ -42,6 +55,7 @@ final class BrowserViewController: UIViewController {
     }
 
     deinit {
+        holdDelayTimer?.invalidate()
         stopSmoothMove()
     }
 
@@ -68,14 +82,32 @@ final class BrowserViewController: UIViewController {
 
         applyNavBarVisibility(animated: false)
 
+        clickpadCaptureView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(clickpadCaptureView)
+        NSLayoutConstraint.activate([
+            clickpadCaptureView.topAnchor.constraint(equalTo: view.topAnchor),
+            clickpadCaptureView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            clickpadCaptureView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            clickpadCaptureView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+
         view.addSubview(cursorView)
+        view.bringSubviewToFront(navBar)
         view.bringSubviewToFront(cursorView)
+    }
+
+    private func setupClickpad() {
+        clickpadCaptureView.onMoved = { [weak self] dx, dy in
+            self?.movePointerBy(dx: dx, dy: dy)
+        }
     }
 
     private func setupPointer() {
         let bridge = viewModel.webContainer.bridge
-        bridge.scrollView.isScrollEnabled = true
-        bridge.webView.isUserInteractionEnabled = true
+        let sv = bridge.scrollView
+        sv.isScrollEnabled = false
+        sv.panGestureRecognizer.isEnabled = false
+        bridge.webView.isUserInteractionEnabled = false
 
         pointerPosition = CGPoint(x: view.bounds.midX, y: view.bounds.midY)
         cursorView.moveTo(pointerPosition)
@@ -150,13 +182,26 @@ final class BrowserViewController: UIViewController {
         }
 
         moveVelocity = moveVelocity(for: press.type)
-        applyPointerStep()
-        startSmoothMove()
+        isContinuousMoveActive = false
+        holdDelayTimer?.invalidate()
+        holdDelayTimer = Timer.scheduledTimer(
+            withTimeInterval: RingNavigation.holdDelay,
+            repeats: false
+        ) { [weak self] _ in
+            self?.isContinuousMoveActive = true
+            self?.startSmoothMove()
+        }
     }
 
     override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         if let press = presses.first, isDirectionalPress(press.type) {
+            holdDelayTimer?.invalidate()
+            holdDelayTimer = nil
+            if !isContinuousMoveActive {
+                applyTapNudge()
+            }
             stopSmoothMove()
+            isContinuousMoveActive = false
             return
         }
 
@@ -188,6 +233,9 @@ final class BrowserViewController: UIViewController {
     }
 
     override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        holdDelayTimer?.invalidate()
+        holdDelayTimer = nil
+        isContinuousMoveActive = false
         stopSmoothMove()
         super.pressesCancelled(presses, with: event)
     }
@@ -212,6 +260,9 @@ final class BrowserViewController: UIViewController {
     private func startSmoothMove() {
         guard moveDisplayLink == nil else { return }
         let link = CADisplayLink(target: self, selector: #selector(handleMoveTick(_:)))
+        if #available(tvOS 15.0, *) {
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
+        }
         link.add(to: .main, forMode: .common)
         moveDisplayLink = link
     }
@@ -223,12 +274,12 @@ final class BrowserViewController: UIViewController {
     }
 
     @objc private func handleMoveTick(_ link: CADisplayLink) {
-        let dt = CGFloat(link.duration)
+        let dt = max(CGFloat(link.duration), 1.0 / 120.0)
         movePointerBy(dx: moveVelocity.x * dt, dy: moveVelocity.y * dt)
     }
 
-    private func applyPointerStep() {
-        let step = RingNavigation.tapStep
+    private func applyTapNudge() {
+        let step = RingNavigation.tapNudge
         if moveVelocity.y < 0 { movePointerBy(dx: 0, dy: -step) }
         else if moveVelocity.y > 0 { movePointerBy(dx: 0, dy: step) }
         else if moveVelocity.x < 0 { movePointerBy(dx: -step, dy: 0) }
@@ -241,6 +292,41 @@ final class BrowserViewController: UIViewController {
         )
         cursorView.moveTo(pointerPosition)
         updatePointerHover()
+        applyEdgeScrollIfNeeded()
+    }
+
+    private func applyEdgeScrollIfNeeded() {
+        let margin = EdgeScroll.margin
+        let bounds = view.bounds
+        var scrollDx: CGFloat = 0
+        var scrollDy: CGFloat = 0
+
+        if pointerPosition.y < margin {
+            scrollDy = -EdgeScroll.speed * (1 - pointerPosition.y / margin)
+        } else if pointerPosition.y > bounds.height - margin {
+            let overflow = pointerPosition.y - (bounds.height - margin)
+            scrollDy = EdgeScroll.speed * min(overflow / margin, 1)
+        }
+
+        if pointerPosition.x < margin {
+            scrollDx = -EdgeScroll.speed * (1 - pointerPosition.x / margin)
+        } else if pointerPosition.x > bounds.width - margin {
+            let overflow = pointerPosition.x - (bounds.width - margin)
+            scrollDx = EdgeScroll.speed * min(overflow / margin, 1)
+        }
+
+        guard scrollDx != 0 || scrollDy != 0 else { return }
+        scrollWebViewBy(dx: scrollDx, dy: scrollDy)
+    }
+
+    private func scrollWebViewBy(dx: CGFloat, dy: CGFloat) {
+        let sv = viewModel.webContainer.bridge.scrollView
+        let maxX = max(0, sv.contentSize.width - sv.bounds.width)
+        let maxY = max(0, sv.contentSize.height - sv.bounds.height)
+        sv.contentOffset = CGPoint(
+            x: min(max(sv.contentOffset.x + dx, 0), maxX),
+            y: min(max(sv.contentOffset.y + dy, 0), maxY)
+        )
     }
 
     private func clampedPointerPosition(_ point: CGPoint) -> CGPoint {

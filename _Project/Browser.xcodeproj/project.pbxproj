@@ -25,6 +25,8 @@
 		BB0001AABBCCDDEEFF001B /* AdvancedMenuPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF001C /* AdvancedMenuPresenter.swift */; };
 		BB0001AABBCCDDEEFF001D /* BrowserViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF001E /* BrowserViewModel.swift */; };
 		BB0001AABBCCDDEEFF001F /* BrowserViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0020 /* BrowserViewController.swift */; };
+		BB0001AABBCCDDEEFF0021 /* ClickpadCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0022 /* ClickpadCaptureView.swift */; };
+		BB0001AABBCCDDEEFF0023 /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0024 /* GameController.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +48,8 @@
 		AA0001AABBCCDDEEFF001C /* AdvancedMenuPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedMenuPresenter.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF001E /* BrowserViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserViewModel.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0020 /* BrowserViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserViewController.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0022 /* ClickpadCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickpadCaptureView.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0024 /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
 		AA0001AABBCCDDEEFF00BH /* Browser-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Browser-Bridging-Header.h"; sourceTree = "<group>"; };
 		B002B8621BAE420500C744AF /* Browser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Browser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B002B8711BAE420500C744AF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -57,6 +61,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BB0001AABBCCDDEEFF0023 /* GameController.framework in Frameworks */,
 				9675E1FF20857AEF00A4A84A /* UIKit.framework in Frameworks */,
 				9675E1FC20855F6500A4A84A /* Foundation.framework in Frameworks */,
 			);
@@ -70,6 +75,7 @@
 			children = (
 				9675E1FE20857AEF00A4A84A /* UIKit.framework */,
 				9675E1FB20855F6500A4A84A /* Foundation.framework */,
+				AA0001AABBCCDDEEFF0024 /* GameController.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -185,6 +191,7 @@
 			isa = PBXGroup;
 			children = (
 				AA0001AABBCCDDEEFF0020 /* BrowserViewController.swift */,
+				AA0001AABBCCDDEEFF0022 /* ClickpadCaptureView.swift */,
 			);
 			path = ViewController;
 			sourceTree = "<group>";
@@ -289,6 +296,7 @@
 				BB0001AABBCCDDEEFF001B /* AdvancedMenuPresenter.swift in Sources */,
 				BB0001AABBCCDDEEFF001D /* BrowserViewModel.swift in Sources */,
 				BB0001AABBCCDDEEFF001F /* BrowserViewController.swift in Sources */,
+				BB0001AABBCCDDEEFF0021 /* ClickpadCaptureView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

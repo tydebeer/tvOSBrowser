@@ -55,9 +55,10 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
     [_wkWebView performSelector:NSSelectorFromString(@"setNavigationDelegate:") withObject:self];
     [_wkWebView performSelector:NSSelectorFromString(@"setUIDelegate:")         withObject:self];
 
-    // Allow scrolling via remote ring and clickpad swipe
+    // Pointer moves via ring + clickpad; page scrolls when pointer hits screen edges.
     UIScrollView *sv = [self scrollView];
-    sv.scrollEnabled = YES;
+    sv.scrollEnabled = NO;
+    sv.panGestureRecognizer.enabled = NO;
     sv.panGestureRecognizer.allowedTouchTypes = @[@(UITouchTypeIndirect)];
     sv.bounces = YES;
 
