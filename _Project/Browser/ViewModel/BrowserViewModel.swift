@@ -1,22 +1,24 @@
 import UIKit
 
-// Central coordinator: URL parsing, navigation commands, UA switching.
-// Does NOT own UIKit views — communicates via closures.
-
 final class BrowserViewModel {
 
     let webContainer: WebViewContainer
     let navBarViewModel = NavigationBarViewModel()
 
     var onLoadError: ((Error, String?) -> Void)?
+    var onStartPageVisibilityChanged: ((Bool) -> Void)?
 
+    private(set) var isShowingStartPage = false
     private let settings = SettingsManager.shared
 
     init() {
         webContainer = WebViewContainer(userAgent: settings.activeUserAgent)
         let bridge = webContainer.bridge
         bridge.onStartLoad = { [weak self] in
-            DispatchQueue.main.async { self?.navBarViewModel.isLoading = true }
+            DispatchQueue.main.async {
+                self?.hideStartPage()
+                self?.navBarViewModel.isLoading = true
+            }
         }
         bridge.onFinishLoad = { [weak self] url, title in
             HistoryManager.shared.add(url: url, title: title)
@@ -53,19 +55,34 @@ final class BrowserViewModel {
 
     func load(rawInput: String) {
         guard let url = parseURL(rawInput) else { return }
+        hideStartPage()
         webContainer.bridge.load(url)
     }
 
+    func showStartPage() {
+        isShowingStartPage = true
+        navBarViewModel.showStartPage()
+        webContainer.isHidden = true
+        onStartPageVisibilityChanged?(true)
+    }
+
+    private func hideStartPage() {
+        guard isShowingStartPage else { return }
+        isShowingStartPage = false
+        webContainer.isHidden = false
+        onStartPageVisibilityChanged?(false)
+    }
+
     func loadHomepage() {
-        load(rawInput: settings.homepage)
+        showStartPage()
     }
 
     func goBack()    { webContainer.bridge.goBack() }
     func goForward() { webContainer.bridge.goForward() }
     func reload()    { webContainer.bridge.reload() }
 
-    var currentURL: String? { webContainer.bridge.currentURL?.absoluteString }
-    var currentTitle: String? { webContainer.bridge.currentTitle }
+    var currentURL: String? { isShowingStartPage ? nil : webContainer.bridge.currentURL?.absoluteString }
+    var currentTitle: String? { isShowingStartPage ? nil : webContainer.bridge.currentTitle }
 
     // MARK: - Settings Actions
 
@@ -122,17 +139,14 @@ final class BrowserViewModel {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
-        // Already has a scheme
         if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") {
             return URL(string: trimmed)
         }
 
-        // Looks like a domain (contains a dot, no spaces)
         if !trimmed.contains(" "), trimmed.contains(".") {
             return URL(string: "https://\(trimmed)")
         }
 
-        // Treat as search query
         let query = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmed
         return URL(string: "https://www.google.com/search?q=\(query)")
     }
@@ -148,4 +162,3 @@ final class BrowserViewModel {
         }
     }
 }
-

@@ -7,16 +7,18 @@ final class CursorView: UIImageView {
     private let arrowImage = UIImage(named: "Cursor")
     private let pointerImage = UIImage(named: "Pointer")
     private var hoverObserver: NSObjectProtocol?
+    private var currentState: CursorState = .arrow
 
     init() {
-        super.init(frame: CGRect(x: 0, y: 0, width: 44, height: 44))
-        image = arrowImage
+        super.init(frame: CGRect(x: 0, y: 0, width: 48, height: 48))
+        image = arrowImage?.withRenderingMode(.alwaysTemplate)
+        tintColor = DSColor.label
         contentMode = .scaleAspectFit
         isUserInteractionEnabled = false
-        layer.shadowColor = UIColor.black.cgColor
-        layer.shadowOpacity = 0.45
-        layer.shadowRadius = 3
-        layer.shadowOffset = CGSize(width: 1, height: 1)
+        layer.shadowColor = DSColor.label.cgColor
+        layer.shadowOpacity = 0.25
+        layer.shadowRadius = 4
+        layer.shadowOffset = CGSize(width: 0, height: 2)
         subscribeToHoverNotifications()
     }
 
@@ -27,10 +29,19 @@ final class CursorView: UIImageView {
     }
 
     func setState(_ state: CursorState) {
+        guard currentState != state else { return }
+        currentState = state
         let target = state == .pointer ? pointerImage : arrowImage
-        guard image !== target else { return }
-        UIView.transition(with: self, duration: 0.1, options: .transitionCrossDissolve) {
-            self.image = target
+        DSMotion.crossfade(self) {
+            self.image = target?.withRenderingMode(.alwaysTemplate)
+            self.tintColor = state == .pointer ? DSColor.accent : DSColor.label
+            if state == .pointer {
+                self.layer.shadowColor = DSColor.accent.cgColor
+                self.layer.shadowOpacity = 0.35
+            } else {
+                self.layer.shadowColor = DSColor.label.cgColor
+                self.layer.shadowOpacity = 0.25
+            }
         }
     }
 

@@ -16,6 +16,7 @@ final class SettingsManager {
         static let savedURLtoReopen  = "savedURLtoReopen"
         static let userAgent         = "UserAgent"
         static let applicationCookie = "ApplicationCookie"
+        static let appTheme          = "AppTheme"
     }
 
     static let mobileUserAgent  = "Mozilla/5.0 (iPad; CPU OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"
@@ -50,6 +51,18 @@ final class SettingsManager {
     var suppressHints: Bool {
         get { defaults.bool(forKey: Keys.suppressHints) }
         set { defaults.set(newValue, forKey: Keys.suppressHints) }
+    }
+
+    var appTheme: AppTheme {
+        get {
+            guard let raw = defaults.string(forKey: Keys.appTheme),
+                  let theme = AppTheme(rawValue: raw) else { return .system }
+            return theme
+        }
+        set {
+            defaults.set(newValue.rawValue, forKey: Keys.appTheme)
+            ThemeManager.applyToAllWindows()
+        }
     }
 
     var savedURLtoReopen: String? {

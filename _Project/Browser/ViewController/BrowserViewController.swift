@@ -18,6 +18,7 @@ final class BrowserViewController: GCEventViewController {
     private let navBar = NavigationBarView()
     private let cursorView = CursorView()
     private let clickpadCaptureView = ClickpadCaptureView()
+    private let startPageVC = StartPageViewController()
 
     private let quickMenu    = QuickMenuPresenter()
     private let advancedMenu = AdvancedMenuPresenter()
@@ -34,8 +35,9 @@ final class BrowserViewController: GCEventViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         controllerUserInteractionEnabled = false
-        view.backgroundColor = .black
+        view.backgroundColor = DSColor.background
         setupLayout()
+        setupStartPage()
         setupPointer()
         setupClickpad()
         setupNavBar()
@@ -81,6 +83,7 @@ final class BrowserViewController: GCEventViewController {
         ])
 
         applyNavBarVisibility(animated: false)
+        startPageTopConstraint.constant = SettingsManager.shared.showNavBar ? NavigationBarView.barHeight : 0
 
         clickpadCaptureView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(clickpadCaptureView)
@@ -94,6 +97,41 @@ final class BrowserViewController: GCEventViewController {
         view.addSubview(cursorView)
         view.bringSubviewToFront(navBar)
         view.bringSubviewToFront(cursorView)
+    }
+
+    private var startPageTopConstraint: NSLayoutConstraint!
+
+    private func setupStartPage() {
+        addChild(startPageVC)
+        startPageVC.view.translatesAutoresizingMaskIntoConstraints = false
+        startPageVC.view.isHidden = true
+        view.insertSubview(startPageVC.view, aboveSubview: viewModel.webContainer)
+        startPageTopConstraint = startPageVC.view.topAnchor.constraint(equalTo: view.topAnchor)
+        NSLayoutConstraint.activate([
+            startPageTopConstraint,
+            startPageVC.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            startPageVC.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            startPageVC.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        startPageVC.didMove(toParent: self)
+
+        startPageVC.onOpenURL = { [weak self] url in
+            self?.viewModel.load(rawInput: url)
+        }
+
+        viewModel.onStartPageVisibilityChanged = { [weak self] visible in
+            self?.updateStartPageVisibility(visible)
+        }
+    }
+
+    private func updateStartPageVisibility(_ visible: Bool) {
+        startPageVC.view.isHidden = !visible
+        if visible {
+            startPageVC.reloadContent()
+            view.bringSubviewToFront(startPageVC.view)
+            view.bringSubviewToFront(navBar)
+            view.bringSubviewToFront(cursorView)
+        }
     }
 
     private func setupClickpad() {
@@ -125,12 +163,14 @@ final class BrowserViewController: GCEventViewController {
         let offset = visible ? NavigationBarView.barHeight : 0
 
         if animated {
-            UIView.animate(withDuration: 0.2) {
+            UIView.animate(withDuration: DSMotion.durationBase) {
                 self.webContainerTopConstraint.constant = offset
+                self.startPageTopConstraint.constant = offset
                 self.view.layoutIfNeeded()
             }
         } else {
             webContainerTopConstraint.constant = offset
+            startPageTopConstraint.constant = offset
         }
         navBar.setHidden(!visible, animated: animated)
     }
@@ -292,7 +332,9 @@ final class BrowserViewController: GCEventViewController {
         )
         cursorView.moveTo(pointerPosition)
         updatePointerHover()
-        applyEdgeScrollIfNeeded()
+        if !viewModel.isShowingStartPage {
+            applyEdgeScrollIfNeeded()
+        }
     }
 
     private func applyEdgeScrollIfNeeded() {
@@ -337,17 +379,40 @@ final class BrowserViewController: GCEventViewController {
     }
 
     private func updatePointerHover() {
-        let webPoint = CGPoint(x: pointerPosition.x, y: pointerPosition.y - webViewOriginY)
-        guard webPoint.y >= 0 else {
+        let navBarHeight = webViewOriginY
+
+        if pointerPosition.y < navBarHeight {
+            let navBarPoint = view.convert(pointerPosition, to: navBar)
+            navBar.setAddressBarFocused(navBar.hitTestAddressBar(at: navBarPoint))
+            highlightNavBarButton(at: navBarPoint)
             NotificationCenter.default.post(
                 name: .cursorHoverStateChanged,
                 object: nil,
-                userInfo: [CursorHoverKey.isClickable: false]
+                userInfo: [CursorHoverKey.isClickable: true]
             )
             return
         }
+
+        navBar.setAddressBarFocused(false)
+
+        if viewModel.isShowingStartPage {
+            startPageVC.updatePointer(at: pointerPosition)
+            return
+        }
+
+        let webPoint = CGPoint(x: pointerPosition.x, y: pointerPosition.y - navBarHeight)
         Task {
             await viewModel.webContainer.jsExecutor.schedulePointerUpdate(at: webPoint)
+        }
+    }
+
+    private func highlightNavBarButton(at point: CGPoint) {
+        let buttons: [SafariIconButton] = [
+            navBar.backButton, navBar.refreshButton, navBar.forwardButton,
+            navBar.homeButton, navBar.fullscreenButton, navBar.menuButton
+        ]
+        for btn in buttons {
+            btn.setHighlighted(btn.frame.contains(point))
         }
     }
 
@@ -357,11 +422,27 @@ final class BrowserViewController: GCEventViewController {
             handleNavBarPointerClick()
             return
         }
+
+        if viewModel.isShowingStartPage {
+            _ = startPageVC.handlePointerClick(at: pointerPosition)
+            return
+        }
+
         viewModel.handlePointerClick(at: pointerPosition, webViewOriginY: navBarHeight)
     }
 
     private func handleNavBarPointerClick() {
         let navBarPoint = view.convert(pointerPosition, to: navBar)
+
+        if navBar.hitTestReloadInPill(at: navBarPoint) {
+            viewModel.reload()
+            return
+        }
+        if navBar.hitTestAddressBar(at: navBarPoint) {
+            showURLInput()
+            return
+        }
+
         if navBar.backButton.frame.contains(navBarPoint) {
             viewModel.goBack()
         } else if navBar.refreshButton.frame.contains(navBarPoint) {
@@ -400,6 +481,7 @@ final class BrowserViewController: GCEventViewController {
         advancedMenu.onShowHints        = { [weak self] in self?.advancedMenu.showHints() }
         advancedMenu.onOpenFavorite     = { [weak self] url in self?.viewModel.load(rawInput: url) }
         advancedMenu.onOpenHistory      = { [weak self] url in self?.viewModel.load(rawInput: url) }
+        advancedMenu.onThemeChanged     = { ThemeManager.applyToAllWindows() }
 
         advancedMenu.currentURLProvider   = { [weak self] in self?.viewModel.currentURL }
         advancedMenu.currentTitleProvider = { [weak self] in self?.viewModel.currentTitle }
@@ -427,59 +509,52 @@ final class BrowserViewController: GCEventViewController {
     }
 
     private func showURLInput() {
-        let alert = UIAlertController(title: "Enter URL or Search", message: nil, preferredStyle: .alert)
-        alert.addTextField { tf in
-            tf.keyboardType = .URL
-            tf.placeholder = "URL or search terms"
-            tf.text = self.viewModel.currentURL
-            tf.autocapitalizationType = .none
-            tf.autocorrectionType = .no
-        }
-        alert.addAction(UIAlertAction(title: "Go", style: .default) { [weak self, weak alert] _ in
-            let text = alert?.textFields?.first?.text ?? ""
+        let sheet = SafariAddressSheetViewController()
+        sheet.initialText = viewModel.currentURL ?? ""
+        sheet.onSubmit = { [weak self] text in
             self?.viewModel.load(rawInput: text)
-        })
-        alert.addAction(UIAlertAction(title: "Search Google", style: .default) { [weak self, weak alert] _ in
-            let text = alert?.textFields?.first?.text ?? ""
-            let query = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? text
-            self?.viewModel.load(rawInput: "https://www.google.com/search?q=\(query)")
-        })
-        alert.addAction(UIAlertAction(title: nil, style: .cancel))
-        present(alert, animated: true) {
-            alert.textFields?.first?.selectAll(nil)
         }
+        present(sheet, animated: false)
     }
 
     private func showLoadError(_ error: Error, requestURL: String?) {
-        let alert = UIAlertController(
-            title: "Could Not Load Page",
-            message: error.localizedDescription,
-            preferredStyle: .alert
-        )
+        var rows: [SafariMenuRow] = []
         if let url = requestURL, !url.isEmpty {
-            alert.addAction(UIAlertAction(title: "Search Google", style: .default) { [weak self] _ in
+            rows.append(SafariMenuRow(title: "Search Google", symbol: "magnifyingglass", action: { [weak self] in
                 let clean = url
                     .replacingOccurrences(of: "https://", with: "")
                     .replacingOccurrences(of: "http://", with: "")
                     .replacingOccurrences(of: "www.", with: "")
                     .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                 self?.viewModel.load(rawInput: "https://www.google.com/search?q=\(clean)")
-            })
+            }))
         }
-        alert.addAction(UIAlertAction(title: "Reload", style: .default) { [weak self] _ in
+        rows.append(SafariMenuRow(title: "Reload Page", symbol: "arrow.clockwise", action: { [weak self] in
             self?.viewModel.reload()
-        })
-        alert.addAction(UIAlertAction(title: nil, style: .cancel))
-        present(alert, animated: true)
+        }))
+
+        let menu = SafariMenuViewController(
+            title: "Could Not Load Page",
+            sections: [
+                SafariMenuSection(title: error.localizedDescription, rows: rows)
+            ]
+        )
+        present(menu, animated: false)
     }
 
     private func confirmExit() {
-        let alert = UIAlertController(title: "Exit tvOS Browser?", message: nil, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Exit", style: .destructive) { _ in
-            UIApplication.shared.perform(NSSelectorFromString("suspend"))
-        })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        present(alert, animated: true)
+        let menu = SafariMenuViewController(
+            title: "Exit Browser?",
+            sections: [
+                SafariMenuSection(title: nil, rows: [
+                    SafariMenuRow(title: "Exit", symbol: "xmark.circle", style: .destructive, action: {
+                        UIApplication.shared.perform(NSSelectorFromString("suspend"))
+                    }),
+                    SafariMenuRow(title: "Cancel", symbol: "arrow.uturn.backward", action: {}),
+                ])
+            ]
+        )
+        present(menu, animated: false)
     }
 
     private func bindViewModel() {

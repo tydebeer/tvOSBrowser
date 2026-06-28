@@ -27,6 +27,16 @@
 		BB0001AABBCCDDEEFF001F /* BrowserViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0020 /* BrowserViewController.swift */; };
 		BB0001AABBCCDDEEFF0021 /* ClickpadCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0022 /* ClickpadCaptureView.swift */; };
 		BB0001AABBCCDDEEFF0023 /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0024 /* GameController.framework */; };
+		BB0001AABBCCDDEEFF0025 /* DSColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0025 /* DSColor.swift */; };
+		BB0001AABBCCDDEEFF0026 /* DSTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0026 /* DSTypography.swift */; };
+		BB0001AABBCCDDEEFF0027 /* DSMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0027 /* DSMetrics.swift */; };
+		BB0001AABBCCDDEEFF0028 /* DSMaterial.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0028 /* DSMaterial.swift */; };
+		BB0001AABBCCDDEEFF0029 /* DSMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0029 /* DSMotion.swift */; };
+		BB0001AABBCCDDEEFF0030 /* DSShadow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0030 /* DSShadow.swift */; };
+		BB0001AABBCCDDEEFF0031 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0031 /* ThemeManager.swift */; };
+		BB0001AABBCCDDEEFF0032 /* StartPageViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0032 /* StartPageViewController.swift */; };
+		BB0001AABBCCDDEEFF0033 /* SafariMenuViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0033 /* SafariMenuViewController.swift */; };
+		BB0001AABBCCDDEEFF0034 /* SafariAddressSheetViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0034 /* SafariAddressSheetViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,6 +60,16 @@
 		AA0001AABBCCDDEEFF0020 /* BrowserViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserViewController.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0022 /* ClickpadCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickpadCaptureView.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0024 /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
+		AA0001AABBCCDDEEFF0025 /* DSColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DSColor.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0026 /* DSTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DSTypography.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0027 /* DSMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DSMetrics.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0028 /* DSMaterial.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DSMaterial.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0029 /* DSMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DSMotion.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0030 /* DSShadow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DSShadow.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0031 /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0032 /* StartPageViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartPageViewController.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0033 /* SafariMenuViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariMenuViewController.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0034 /* SafariAddressSheetViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariAddressSheetViewController.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF00BH /* Browser-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Browser-Bridging-Header.h"; sourceTree = "<group>"; };
 		B002B8621BAE420500C744AF /* Browser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Browser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B002B8711BAE420500C744AF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -102,9 +122,11 @@
 			children = (
 				AA0001AABBCCDDEEFF00BH /* Browser-Bridging-Header.h */,
 				CCGROUP00000001AABBCCDD /* App */,
+				CCGROUP00000009AABBCCDD /* DesignSystem */,
 				CCGROUP00000002AABBCCDD /* WebView */,
 				CCGROUP00000003AABBCCDD /* Cursor */,
 				CCGROUP00000004AABBCCDD /* Navigation */,
+				CCGROUP0000000AAABBCCDD /* StartPage */,
 				CCGROUP00000005AABBCCDD /* Menus */,
 				CCGROUP00000006AABBCCDD /* Data */,
 				CCGROUP00000007AABBCCDD /* ViewModel */,
@@ -165,8 +187,32 @@
 			children = (
 				AA0001AABBCCDDEEFF001A /* QuickMenuPresenter.swift */,
 				AA0001AABBCCDDEEFF001C /* AdvancedMenuPresenter.swift */,
+				AA0001AABBCCDDEEFF0033 /* SafariMenuViewController.swift */,
+				AA0001AABBCCDDEEFF0034 /* SafariAddressSheetViewController.swift */,
 			);
 			path = Menus;
+			sourceTree = "<group>";
+		};
+		CCGROUP00000009AABBCCDD /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				AA0001AABBCCDDEEFF0025 /* DSColor.swift */,
+				AA0001AABBCCDDEEFF0026 /* DSTypography.swift */,
+				AA0001AABBCCDDEEFF0027 /* DSMetrics.swift */,
+				AA0001AABBCCDDEEFF0028 /* DSMaterial.swift */,
+				AA0001AABBCCDDEEFF0029 /* DSMotion.swift */,
+				AA0001AABBCCDDEEFF0030 /* DSShadow.swift */,
+				AA0001AABBCCDDEEFF0031 /* ThemeManager.swift */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		CCGROUP0000000AAABBCCDD /* StartPage */ = {
+			isa = PBXGroup;
+			children = (
+				AA0001AABBCCDDEEFF0032 /* StartPageViewController.swift */,
+			);
+			path = StartPage;
 			sourceTree = "<group>";
 		};
 		CCGROUP00000006AABBCCDD /* Data */ = {
@@ -297,6 +343,16 @@
 				BB0001AABBCCDDEEFF001D /* BrowserViewModel.swift in Sources */,
 				BB0001AABBCCDDEEFF001F /* BrowserViewController.swift in Sources */,
 				BB0001AABBCCDDEEFF0021 /* ClickpadCaptureView.swift in Sources */,
+				BB0001AABBCCDDEEFF0025 /* DSColor.swift in Sources */,
+				BB0001AABBCCDDEEFF0026 /* DSTypography.swift in Sources */,
+				BB0001AABBCCDDEEFF0027 /* DSMetrics.swift in Sources */,
+				BB0001AABBCCDDEEFF0028 /* DSMaterial.swift in Sources */,
+				BB0001AABBCCDDEEFF0029 /* DSMotion.swift in Sources */,
+				BB0001AABBCCDDEEFF0030 /* DSShadow.swift in Sources */,
+				BB0001AABBCCDDEEFF0031 /* ThemeManager.swift in Sources */,
+				BB0001AABBCCDDEEFF0032 /* StartPageViewController.swift in Sources */,
+				BB0001AABBCCDDEEFF0033 /* SafariMenuViewController.swift in Sources */,
+				BB0001AABBCCDDEEFF0034 /* SafariAddressSheetViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
