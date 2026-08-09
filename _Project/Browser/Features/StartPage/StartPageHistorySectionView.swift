@@ -79,37 +79,6 @@ final class StartPageHistorySectionView: UIView {
         }
     }
 
-    /// Nearest small history control center (in `host` coords) within magnet radius, if any.
-    func magnetTarget(
-        near point: CGPoint,
-        in host: UIView,
-        radius: CGFloat,
-        maxArea: CGFloat
-    ) -> (center: CGPoint, area: CGFloat)? {
-        var best: (center: CGPoint, area: CGFloat, dist: CGFloat)?
-
-        func consider(_ frameInSelf: CGRect) {
-            let frame = convert(frameInSelf, to: host)
-            let area = frame.width * frame.height
-            guard area <= maxArea else { return }
-            let center = CGPoint(x: frame.midX, y: frame.midY)
-            let dist = hypot(center.x - point.x, center.y - point.y)
-            guard dist <= radius else { return }
-            if best == nil || dist < best!.dist || (dist <= best!.dist && area < best!.area) {
-                best = (center, area, dist)
-            }
-        }
-
-        consider(headerButton.frame)
-        if isExpanded {
-            for row in rowViews {
-                consider(row.convert(row.bounds, to: self))
-            }
-        }
-        guard let best else { return nil }
-        return (best.center, best.area)
-    }
-
     private func hitTarget(at point: CGPoint, in host: UIView) -> HitTarget {
         let local = convert(point, from: host)
         if headerButton.frame.contains(local) { return .header }

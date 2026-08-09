@@ -46,27 +46,20 @@ extension JavaScriptExecutor {
         _ = try? await evaluateJavaScript(js)
     }
 
-    func schedulePointerUpdate(
-        at viewPoint: CGPoint,
-        completion: (@MainActor (PointerMagnetHint) -> Void)? = nil
-    ) {
+    func schedulePointerUpdate(at viewPoint: CGPoint) {
         pendingPointerTask?.cancel()
         pendingPointerTask = Task { [weak self] in
             guard let self else { return }
             do { try await Task.sleep(nanoseconds: 16_000_000) } catch { return }
             guard !Task.isCancelled else { return }
-            let hint = await self.updatePointer(at: viewPoint)
-            if let completion {
-                await MainActor.run { completion(hint) }
-            }
+            await self.updatePointer(at: viewPoint)
         }
     }
 
     @discardableResult
-    func updatePointer(at viewPoint: CGPoint) async -> PointerMagnetHint {
+    func updatePointer(at viewPoint: CGPoint) async -> Bool {
         let pageZoom = await currentPageZoom()
         let suppressDropdowns = shouldSuppressDropdownHover
-        let hitRadius = Double(DSMetrics.pointerHitExpandRadius)
         let js = """
         (function() {
             \(Self.jsPointConversion(viewPoint, pageZoom: pageZoom))
@@ -76,14 +69,14 @@ extension JavaScriptExecutor {
             if (window.__tvbHoverEl) {
                 window.__tvbHoverEl = null;
             }
-            var resolved = window.__tvbResolveTargetAt(x, y, \(hitRadius));
+            var resolved = window.__tvbResolveTargetAt(x, y, 0);
             var el = resolved.el;
             var target = resolved.target;
             if (!el) {
                 if (!\(suppressDropdowns ? "true" : "false") && !window.__tvbPinnedOverlay) {
                     window.__tvbCloseDropdowns(null);
                 }
-                return { clickable: false };
+                return false;
             }
 
             \(Self.jsDispatchHover)
@@ -104,54 +97,21 @@ extension JavaScriptExecutor {
 
             if (target) {
                 window.__tvbHoverEl = target;
-                var rect = target.getBoundingClientRect();
-                var cx = rect.left + rect.width / 2;
-                var cy = rect.top + rect.height / 2;
-                var vvScale = (window.visualViewport && window.visualViewport.scale) || 1;
-                var ox = (window.visualViewport && window.visualViewport.offsetLeft) || 0;
-                var oy = (window.visualViewport && window.visualViewport.offsetTop) || 0;
-                var snapX = (cx - ox) * vvScale * pageZoom;
-                var snapY = (cy - oy) * vvScale * pageZoom;
-                return {
-                    clickable: true,
-                    snapX: snapX,
-                    snapY: snapY,
-                    area: Math.max(1, rect.width * rect.height)
-                };
+                return true;
             }
-            return { clickable: false };
+            return false;
         })()
         """
         let result = try? await evaluateJavaScript(js)
-        let hint = Self.magnetHint(from: result)
+        let isClickable = Self.boolValue(result)
         await MainActor.run {
             NotificationCenter.default.post(
                 name: .cursorHoverStateChanged,
                 object: nil,
-                userInfo: [CursorHoverKey.isClickable: hint.isClickable]
+                userInfo: [CursorHoverKey.isClickable: isClickable]
             )
         }
-        return hint
-    }
-
-    private static func magnetHint(from result: Any?) -> PointerMagnetHint {
-        guard let dict = result as? [String: Any] else {
-            return Self.boolValue(result)
-                ? PointerMagnetHint(isClickable: true, snapPoint: nil, area: .greatestFiniteMagnitude)
-                : .none
-        }
-        let clickable = boolValue(dict["clickable"])
-        guard clickable else { return .none }
-        let area = (dict["area"] as? NSNumber)?.doubleValue ?? Double.greatestFiniteMagnitude
-        let sx = dict["snapX"] as? NSNumber
-        let sy = dict["snapY"] as? NSNumber
-        let snap: CGPoint?
-        if let sx, let sy {
-            snap = CGPoint(x: CGFloat(sx.doubleValue), y: CGFloat(sy.doubleValue))
-        } else {
-            snap = nil
-        }
-        return PointerMagnetHint(isClickable: true, snapPoint: snap, area: CGFloat(area))
+        return isClickable
     }
 
     func click(at viewPoint: CGPoint) async throws -> [String: Any]? {

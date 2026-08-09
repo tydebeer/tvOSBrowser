@@ -368,39 +368,15 @@ final class BrowserViewController: GCEventViewController {
 
         if viewModel.isShowingStartPage {
             let local = startPageVC.view.convert(pointerPosition, from: view)
-            let hint = startPageVC.updatePointer(at: local)
-            applyMagnetAssist(hint, snapIn: startPageVC.view)
+            startPageVC.updatePointer(at: local)
             return
         }
 
         pointer.applyEdgeScrollIfNeeded()
         Task { @MainActor [weak self] in
             guard let self else { return }
-            await self.viewModel.webContainer.jsExecutor.schedulePointerUpdate(at: pointerPosition) { [weak self] hint in
-                self?.applyMagnetAssist(hint, snapIn: nil)
-            }
+            await self.viewModel.webContainer.jsExecutor.schedulePointerUpdate(at: pointerPosition)
         }
-    }
-
-    /// Soft-pull pointer toward a small nearby target. `snapIn` is the view that owns snap coords (nil = browser view).
-    private func applyMagnetAssist(_ hint: PointerMagnetHint, snapIn: UIView?) {
-        guard pointer.isMagnetAllowed else { return }
-        guard hint.isClickable, let snap = hint.snapPoint else { return }
-        guard hint.area <= DSMetrics.pointerMagnetMaxTargetArea else { return }
-
-        let target: CGPoint
-        if let snapIn {
-            target = view.convert(snap, from: snapIn)
-        } else {
-            target = snap
-        }
-
-        let dx = target.x - pointer.position.x
-        let dy = target.y - pointer.position.y
-        let distance = hypot(dx, dy)
-        guard distance > 0.5, distance <= DSMetrics.pointerMagnetRadius else { return }
-
-        pointer.moveToward(target, strength: DSMetrics.pointerMagnetStrength)
     }
 
     private func handlePointerSelectPress() {

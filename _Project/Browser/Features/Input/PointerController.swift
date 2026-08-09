@@ -1,16 +1,5 @@
 import UIKit
 
-/// Soft snap target returned by web / start-page hover hit-testing.
-struct PointerMagnetHint {
-    let isClickable: Bool
-    /// Target center in view coordinates (same space as `PointerController.position`).
-    let snapPoint: CGPoint?
-    /// Target bounding-box area (CSS px² on web; view px² on start page).
-    let area: CGFloat
-
-    static let none = PointerMagnetHint(isClickable: false, snapPoint: nil, area: .greatestFiniteMagnitude)
-}
-
 final class PointerController {
 
     enum RingNavigation {
@@ -45,16 +34,6 @@ final class PointerController {
         stopSmoothMove()
     }
 
-    /// True when assist should run (not edge-scrolling, not racing at full stick speed).
-    var isMagnetAllowed: Bool {
-        if isNearEdgeForScroll { return false }
-        if isContinuousMoveActive {
-            let speed = hypot(moveVelocity.x, moveVelocity.y)
-            if speed > DSMetrics.pointerMagnetMaxSpeed { return false }
-        }
-        return true
-    }
-
     func resetToCenter() {
         guard let bounds = boundsProvider?.bounds else { return }
         position = CGPoint(x: bounds.midX, y: bounds.midY)
@@ -70,18 +49,6 @@ final class PointerController {
         position = clamped(CGPoint(x: position.x + dx, y: position.y + dy))
         publish()
         onHoverUpdate?(position)
-    }
-
-    /// Soft pull toward a point without re-triggering hover (avoids assist recursion).
-    func moveToward(_ point: CGPoint, strength: CGFloat) {
-        let t = min(max(strength, 0), 1)
-        guard t > 0 else { return }
-        let next = CGPoint(
-            x: position.x + (point.x - position.x) * t,
-            y: position.y + (point.y - position.y) * t
-        )
-        position = clamped(next)
-        publish()
     }
 
     func beginDirectionalPress(_ type: UIPress.PressType) {
@@ -117,10 +84,6 @@ final class PointerController {
     func applyEdgeScrollIfNeeded() {
         guard let scroll = edgeScrollDelta() else { return }
         onEdgeScroll?(scroll.dx, scroll.dy)
-    }
-
-    private var isNearEdgeForScroll: Bool {
-        edgeScrollDelta() != nil
     }
 
     private func edgeScrollDelta() -> (dx: CGFloat, dy: CGFloat)? {

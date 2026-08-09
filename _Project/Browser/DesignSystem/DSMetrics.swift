@@ -48,16 +48,8 @@ enum DSMetrics {
     /// Soft floor for short menus; tall menus grow with content up to max height.
     static let menuTableMinHeight: CGFloat = 120
     static let menuMaxHeightMultiplier: CGFloat = 0.92
-    /// Extra search radius (CSS px) when the pointer misses a tiny clickable control.
+    /// Extra search radius (CSS px) when a click misses a tiny clickable control.
     static let pointerHitExpandRadius: CGFloat = hitTarget
-    /// Attract distance (view px) for soft magnetic assist toward small targets.
-    static let pointerMagnetRadius: CGFloat = hitTarget
-    /// Only magnetize controls at or below this CSS bounding-box area (px²).
-    static let pointerMagnetMaxTargetArea: CGFloat = 20_000
-    /// Ease factor per hover tick toward the target center (0...1).
-    static let pointerMagnetStrength: CGFloat = 0.35
-    /// Skip magnet assist while continuous-move speed exceeds this (view px/s).
-    static let pointerMagnetMaxSpeed: CGFloat = 260
     /// Ignore Bootstrap open/close while the user is actively scrolling.
     static let pointerScrollDropdownSuppress: TimeInterval = 0.4
     static let pageZoomDefault: CGFloat = 1.0

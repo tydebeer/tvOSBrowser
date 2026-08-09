@@ -48,40 +48,15 @@ final class StartPageViewController: UIViewController {
 
     /// - Parameter point: Point in this view's coordinate space.
     @discardableResult
-    func updatePointer(at point: CGPoint) -> PointerMagnetHint {
+    func updatePointer(at point: CGPoint) -> Bool {
         historySection.updateHover(at: point, in: view)
 
-        var bestSnap: CGPoint?
-        var bestArea = CGFloat.greatestFiniteMagnitude
-        var bestDist = CGFloat.greatestFiniteMagnitude
         var foundTile: StartPageTileView?
-
-        let magnetRadius = DSMetrics.pointerMagnetRadius
-        let maxArea = DSMetrics.pointerMagnetMaxTargetArea
-
         for tile in gridFactory.tileViews {
             let frame = tile.convert(tile.bounds, to: view)
             if frame.contains(point) {
                 foundTile = tile
-            }
-            let area = frame.width * frame.height
-            guard area <= maxArea else { continue }
-            let center = CGPoint(x: frame.midX, y: frame.midY)
-            let dist = hypot(center.x - point.x, center.y - point.y)
-            guard dist <= magnetRadius else { continue }
-            if dist < bestDist || (dist <= bestDist && area < bestArea) {
-                bestDist = dist
-                bestArea = area
-                bestSnap = center
-            }
-        }
-
-        if let headerSnap = historySection.magnetTarget(near: point, in: view, radius: magnetRadius, maxArea: maxArea) {
-            let dist = hypot(headerSnap.center.x - point.x, headerSnap.center.y - point.y)
-            if dist < bestDist || (dist <= bestDist && headerSnap.area < bestArea) {
-                bestDist = dist
-                bestArea = headerSnap.area
-                bestSnap = headerSnap.center
+                break
             }
         }
 
@@ -92,7 +67,7 @@ final class StartPageViewController: UIViewController {
         }
 
         let historyHit = historySection.isPointerTarget(at: point, in: view)
-        let isClickable = foundTile != nil || historyHit || bestSnap != nil
+        let isClickable = foundTile != nil || historyHit
 
         NotificationCenter.default.post(
             name: .cursorHoverStateChanged,
@@ -100,20 +75,7 @@ final class StartPageViewController: UIViewController {
             userInfo: [CursorHoverKey.isClickable: isClickable]
         )
 
-        if let snap = bestSnap {
-            return PointerMagnetHint(isClickable: true, snapPoint: snap, area: bestArea)
-        }
-        if let tile = foundTile {
-            let frame = tile.convert(tile.bounds, to: view)
-            return PointerMagnetHint(
-                isClickable: true,
-                snapPoint: CGPoint(x: frame.midX, y: frame.midY),
-                area: frame.width * frame.height
-            )
-        }
-        return historyHit
-            ? PointerMagnetHint(isClickable: true, snapPoint: nil, area: .greatestFiniteMagnitude)
-            : .none
+        return isClickable
     }
 
     @discardableResult
