@@ -1,15 +1,11 @@
 # OS X
 .DS_Store
 
-## User settings
+# Xcode user data
 xcuserdata/
 *.xcuserstate
-
-## compatibility with Xcode 8 and earlier (ignoring not required starting Xcode 9)
 *.xcscmblueprint
 *.xccheckout
-
-## compatibility with Xcode 3 and earlier (ignoring not required starting Xcode 4)
 *.moved-aside
 *.pbxuser
 !default.pbxuser
@@ -20,48 +16,28 @@ xcuserdata/
 *.perspectivev3
 !default.perspectivev3
 
-## Build generated
-_Project/build/
+# Build
 build/
-_Project/DerivedData/
 DerivedData/
+_Project/build/
+_Project/DerivedData/
 
-## Various settings
-*.pbxuser
-!default.pbxuser
-*.mode1v3
-!default.mode1v3
-*.mode2v3
-!default.mode2v3
-*.perspectivev3
-!default.perspectivev3
-xcuserdata/
-
-## Other
-*.moved-aside
-*.xccheckout
-*.xcscmblueprint
-
-## Obj-C/Swift specific
+# Obj-C / Swift
 *.hmap
 *.ipa
 *.dSYM.zip
 *.dSYM
 
-## Playgrounds
+# Playgrounds
 timeline.xctimeline
 playground.xcworkspace
 
-
-# fastlane
-#
-# It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the
-# screenshots whenever they are needed.
-# For more information about the recommended setup visit:
-# https://docs.fastlane.tools/best-practices/source-control/#source-control
-
+# Fastlane
 fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots
 fastlane/test_output
+
+# Legacy / local
 _Project/Availability.h
+.claude/

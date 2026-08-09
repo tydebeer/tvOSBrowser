@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: _Project
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: echo "DEVELOPER_DIR=$DEVELOPER_DIR" && sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Build and test
+        env:
+          DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+        run: |
+          xcodebuild \
+            -project Browser.xcodeproj \
+            -scheme Browser \
+            -destination 'platform=tvOS Simulator,name=Apple TV' \
+            -derivedDataPath DerivedData \
+            test

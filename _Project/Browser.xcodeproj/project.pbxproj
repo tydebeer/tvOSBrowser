@@ -16,13 +16,10 @@
 		BB0001AABBCCDDEEFF0007 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0008 /* SettingsManager.swift */; };
 		BB0001AABBCCDDEEFF0009 /* HistoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF000A /* HistoryManager.swift */; };
 		BB0001AABBCCDDEEFF000B /* FavoritesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF000C /* FavoritesManager.swift */; };
+		BB0001AABBCCDDEEFF004F /* CredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF004F /* CredentialStore.swift */; };
 		BB0001AABBCCDDEEFF000D /* JavaScriptExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF000E /* JavaScriptExecutor.swift */; };
 		BB0001AABBCCDDEEFF000F /* WebViewContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0010 /* WebViewContainer.swift */; };
 		BB0001AABBCCDDEEFF0013 /* CursorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0014 /* CursorView.swift */; };
-		BB0001AABBCCDDEEFF0015 /* NavigationBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0016 /* NavigationBarView.swift */; };
-		BB0001AABBCCDDEEFF0017 /* NavigationBarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0018 /* NavigationBarViewModel.swift */; };
-		BB0001AABBCCDDEEFF0019 /* QuickMenuPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF001A /* QuickMenuPresenter.swift */; };
-		BB0001AABBCCDDEEFF001B /* AdvancedMenuPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF001C /* AdvancedMenuPresenter.swift */; };
 		BB0001AABBCCDDEEFF001D /* BrowserViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF001E /* BrowserViewModel.swift */; };
 		BB0001AABBCCDDEEFF001F /* BrowserViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0020 /* BrowserViewController.swift */; };
 		BB0001AABBCCDDEEFF0021 /* ClickpadCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0022 /* ClickpadCaptureView.swift */; };
@@ -33,11 +30,39 @@
 		BB0001AABBCCDDEEFF0028 /* DSMaterial.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0028 /* DSMaterial.swift */; };
 		BB0001AABBCCDDEEFF0029 /* DSMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0029 /* DSMotion.swift */; };
 		BB0001AABBCCDDEEFF0030 /* DSShadow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0030 /* DSShadow.swift */; };
-		BB0001AABBCCDDEEFF0031 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0031 /* ThemeManager.swift */; };
 		BB0001AABBCCDDEEFF0032 /* StartPageViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0032 /* StartPageViewController.swift */; };
 		BB0001AABBCCDDEEFF0033 /* SafariMenuViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0033 /* SafariMenuViewController.swift */; };
+		BB0001AABBCCDDEEFF004E /* BrowserMenuPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF004E /* BrowserMenuPresenter.swift */; };
 		BB0001AABBCCDDEEFF0034 /* SafariAddressSheetViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0034 /* SafariAddressSheetViewController.swift */; };
+		BB0001AABBCCDDEEFF0051 /* NativeTextPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0051 /* NativeTextPrompt.swift */; };
+		BB0001AABBCCDDEEFF0040 /* DimmedMaterialSheetController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0040 /* DimmedMaterialSheetController.swift */; };
+		BB0001AABBCCDDEEFF0041 /* DSButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0041 /* DSButton.swift */; };
+		BB0001AABBCCDDEEFF0043 /* DSHoverHighlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0043 /* DSHoverHighlight.swift */; };
+		BB0001AABBCCDDEEFF0044 /* PointerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0044 /* PointerController.swift */; };
+		BB0001AABBCCDDEEFF0045 /* URLParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0045 /* URLParser.swift */; };
+		BB0001AABBCCDDEEFF0050 /* VoiceInputSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0050 /* VoiceInputSanitizer.swift */; };
+		BB0001AABBCCDDEEFF0046 /* LayoutScripting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0046 /* LayoutScripting.swift */; };
+		BB0001AABBCCDDEEFF0047 /* PointerScripting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0047 /* PointerScripting.swift */; };
+		BB0001AABBCCDDEEFF0048 /* VideoFullscreenScripting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0048 /* VideoFullscreenScripting.swift */; };
+		BB0001AABBCCDDEEFF0049 /* StartPageWallpaperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF0049 /* StartPageWallpaperView.swift */; };
+		BB0001AABBCCDDEEFF004A /* StartPageFavoritesGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF004A /* StartPageFavoritesGridView.swift */; };
+		BB0001AABBCCDDEEFF004C /* StartPageHistorySectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001AABBCCDDEEFF004C /* StartPageHistorySectionView.swift */; };
+
+		TTBB0001AABBCCDDEEFF0001 /* URLParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TTAA0001AABBCCDDEEFF0001 /* URLParserTests.swift */; };
+		TTBB0001AABBCCDDEEFF0002 /* CredentialStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TTAA0001AABBCCDDEEFF0002 /* CredentialStoreTests.swift */; };
+		TTBB0001AABBCCDDEEFF0003 /* Browser.app in Frameworks */ = {isa = PBXBuildFile; fileRef = B002B8621BAE420500C744AF /* Browser.app */; };
 /* End PBXBuildFile section */
+
+
+/* Begin PBXContainerItemProxy section */
+		TTCC0001AABBCCDDEEFF0001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B002B85A1BAE420500C744AF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B002B8611BAE420500C744AF;
+			remoteInfo = Browser;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		9675E1FB20855F6500A4A84A /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
@@ -49,13 +74,10 @@
 		AA0001AABBCCDDEEFF0008 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF000A /* HistoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryManager.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF000C /* FavoritesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesManager.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF004F /* CredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialStore.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF000E /* JavaScriptExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavaScriptExecutor.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0010 /* WebViewContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewContainer.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0014 /* CursorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorView.swift; sourceTree = "<group>"; };
-		AA0001AABBCCDDEEFF0016 /* NavigationBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationBarView.swift; sourceTree = "<group>"; };
-		AA0001AABBCCDDEEFF0018 /* NavigationBarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationBarViewModel.swift; sourceTree = "<group>"; };
-		AA0001AABBCCDDEEFF001A /* QuickMenuPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickMenuPresenter.swift; sourceTree = "<group>"; };
-		AA0001AABBCCDDEEFF001C /* AdvancedMenuPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedMenuPresenter.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF001E /* BrowserViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserViewModel.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0020 /* BrowserViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserViewController.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0022 /* ClickpadCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickpadCaptureView.swift; sourceTree = "<group>"; };
@@ -66,14 +88,31 @@
 		AA0001AABBCCDDEEFF0028 /* DSMaterial.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DSMaterial.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0029 /* DSMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DSMotion.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0030 /* DSShadow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DSShadow.swift; sourceTree = "<group>"; };
-		AA0001AABBCCDDEEFF0031 /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0032 /* StartPageViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartPageViewController.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0033 /* SafariMenuViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariMenuViewController.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF004E /* BrowserMenuPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserMenuPresenter.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF0034 /* SafariAddressSheetViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariAddressSheetViewController.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0051 /* NativeTextPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTextPrompt.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0040 /* DimmedMaterialSheetController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DimmedMaterialSheetController.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0041 /* DSButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DSButton.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0043 /* DSHoverHighlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DSHoverHighlight.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0044 /* PointerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointerController.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0045 /* URLParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLParser.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0050 /* VoiceInputSanitizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputSanitizer.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0046 /* LayoutScripting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutScripting.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0047 /* PointerScripting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointerScripting.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0048 /* VideoFullscreenScripting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFullscreenScripting.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF0049 /* StartPageWallpaperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartPageWallpaperView.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF004A /* StartPageFavoritesGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartPageFavoritesGridView.swift; sourceTree = "<group>"; };
+		AA0001AABBCCDDEEFF004C /* StartPageHistorySectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartPageHistorySectionView.swift; sourceTree = "<group>"; };
 		AA0001AABBCCDDEEFF00BH /* Browser-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Browser-Bridging-Header.h"; sourceTree = "<group>"; };
 		B002B8621BAE420500C744AF /* Browser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Browser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B002B8711BAE420500C744AF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B002B8731BAE420500C744AF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+
+		TTAA0001AABBCCDDEEFF0001 /* URLParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLParserTests.swift; sourceTree = "<group>"; };
+		TTAA0001AABBCCDDEEFF0002 /* CredentialStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialStoreTests.swift; sourceTree = "<group>"; };
+		TTAA0001AABBCCDDEEFF0003 /* BrowserTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BrowserTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -84,6 +123,15 @@
 				BB0001AABBCCDDEEFF0023 /* GameController.framework in Frameworks */,
 				9675E1FF20857AEF00A4A84A /* UIKit.framework in Frameworks */,
 				9675E1FC20855F6500A4A84A /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
+		TTFF0001AABBCCDDEEFF0001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				TTBB0001AABBCCDDEEFF0003 /* Browser.app in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -104,6 +152,7 @@
 			isa = PBXGroup;
 			children = (
 				B002B8641BAE420500C744AF /* Browser */,
+				TTGG0001AABBCCDDEEFF0001 /* BrowserTests */,
 				B002B8631BAE420500C744AF /* Products */,
 				9675E1FA20855F6500A4A84A /* Frameworks */,
 			);
@@ -113,8 +162,18 @@
 			isa = PBXGroup;
 			children = (
 				B002B8621BAE420500C744AF /* Browser.app */,
+				TTAA0001AABBCCDDEEFF0003 /* BrowserTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		TTGG0001AABBCCDDEEFF0001 /* BrowserTests */ = {
+			isa = PBXGroup;
+			children = (
+				TTAA0001AABBCCDDEEFF0001 /* URLParserTests.swift */,
+				TTAA0001AABBCCDDEEFF0002 /* CredentialStoreTests.swift */,
+			);
+			path = BrowserTests;
 			sourceTree = "<group>";
 		};
 		B002B8641BAE420500C744AF /* Browser */ = {
@@ -123,14 +182,9 @@
 				AA0001AABBCCDDEEFF00BH /* Browser-Bridging-Header.h */,
 				CCGROUP00000001AABBCCDD /* App */,
 				CCGROUP00000009AABBCCDD /* DesignSystem */,
-				CCGROUP00000002AABBCCDD /* WebView */,
-				CCGROUP00000003AABBCCDD /* Cursor */,
-				CCGROUP00000004AABBCCDD /* Navigation */,
-				CCGROUP0000000AAABBCCDD /* StartPage */,
-				CCGROUP00000005AABBCCDD /* Menus */,
+				CCGROUP0000000BABBCCDD /* Components */,
+				CCGROUP0000000FEATURES /* Features */,
 				CCGROUP00000006AABBCCDD /* Data */,
-				CCGROUP00000007AABBCCDD /* ViewModel */,
-				CCGROUP00000008AABBCCDD /* ViewController */,
 				B002B8651BAE420500C744AF /* Supporting Files */,
 			);
 			path = Browser;
@@ -154,43 +208,15 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		CCGROUP00000002AABBCCDD /* WebView */ = {
+		CCGROUP00000006AABBCCDD /* Data */ = {
 			isa = PBXGroup;
 			children = (
-				AA0001AABBCCDDEEFF0001 /* WebViewBridge.h */,
-				AA0001AABBCCDDEEFF0002 /* WebViewBridge.m */,
-				AA0001AABBCCDDEEFF000E /* JavaScriptExecutor.swift */,
-				AA0001AABBCCDDEEFF0010 /* WebViewContainer.swift */,
+				AA0001AABBCCDDEEFF0008 /* SettingsManager.swift */,
+				AA0001AABBCCDDEEFF000A /* HistoryManager.swift */,
+				AA0001AABBCCDDEEFF000C /* FavoritesManager.swift */,
+				AA0001AABBCCDDEEFF004F /* CredentialStore.swift */,
 			);
-			path = WebView;
-			sourceTree = "<group>";
-		};
-		CCGROUP00000003AABBCCDD /* Cursor */ = {
-			isa = PBXGroup;
-			children = (
-				AA0001AABBCCDDEEFF0014 /* CursorView.swift */,
-			);
-			path = Cursor;
-			sourceTree = "<group>";
-		};
-		CCGROUP00000004AABBCCDD /* Navigation */ = {
-			isa = PBXGroup;
-			children = (
-				AA0001AABBCCDDEEFF0016 /* NavigationBarView.swift */,
-				AA0001AABBCCDDEEFF0018 /* NavigationBarViewModel.swift */,
-			);
-			path = Navigation;
-			sourceTree = "<group>";
-		};
-		CCGROUP00000005AABBCCDD /* Menus */ = {
-			isa = PBXGroup;
-			children = (
-				AA0001AABBCCDDEEFF001A /* QuickMenuPresenter.swift */,
-				AA0001AABBCCDDEEFF001C /* AdvancedMenuPresenter.swift */,
-				AA0001AABBCCDDEEFF0033 /* SafariMenuViewController.swift */,
-				AA0001AABBCCDDEEFF0034 /* SafariAddressSheetViewController.swift */,
-			);
-			path = Menus;
+			path = Data;
 			sourceTree = "<group>";
 		};
 		CCGROUP00000009AABBCCDD /* DesignSystem */ = {
@@ -202,44 +228,103 @@
 				AA0001AABBCCDDEEFF0028 /* DSMaterial.swift */,
 				AA0001AABBCCDDEEFF0029 /* DSMotion.swift */,
 				AA0001AABBCCDDEEFF0030 /* DSShadow.swift */,
-				AA0001AABBCCDDEEFF0031 /* ThemeManager.swift */,
 			);
 			path = DesignSystem;
 			sourceTree = "<group>";
 		};
-		CCGROUP0000000AAABBCCDD /* StartPage */ = {
+		CCGROUP0000000BABBCCDD /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				AA0001AABBCCDDEEFF0040 /* DimmedMaterialSheetController.swift */,
+				AA0001AABBCCDDEEFF0041 /* DSButton.swift */,
+				AA0001AABBCCDDEEFF0043 /* DSHoverHighlight.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		CCGROUP0000000FEATURES /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				CCGROUP0000FEATBROWSER /* Browser */,
+				CCGROUP0000FEATSTART /* StartPage */,
+				CCGROUP0000FEATMENUS /* Menus */,
+				CCGROUP0000FEATINPUT /* Input */,
+				CCGROUP0000FEATWEBVIEW /* WebView */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		CCGROUP0000FEATBROWSER /* Browser */ = {
+			isa = PBXGroup;
+			children = (
+				AA0001AABBCCDDEEFF0020 /* BrowserViewController.swift */,
+				AA0001AABBCCDDEEFF001E /* BrowserViewModel.swift */,
+				AA0001AABBCCDDEEFF0045 /* URLParser.swift */,
+				AA0001AABBCCDDEEFF0050 /* VoiceInputSanitizer.swift */,
+			);
+			path = Browser;
+			sourceTree = "<group>";
+		};
+		CCGROUP0000FEATSTART /* StartPage */ = {
 			isa = PBXGroup;
 			children = (
 				AA0001AABBCCDDEEFF0032 /* StartPageViewController.swift */,
+				AA0001AABBCCDDEEFF0049 /* StartPageWallpaperView.swift */,
+				AA0001AABBCCDDEEFF004A /* StartPageFavoritesGridView.swift */,
+				AA0001AABBCCDDEEFF004C /* StartPageHistorySectionView.swift */,
 			);
 			path = StartPage;
 			sourceTree = "<group>";
 		};
-		CCGROUP00000006AABBCCDD /* Data */ = {
+		CCGROUP0000FEATMENUS /* Menus */ = {
 			isa = PBXGroup;
 			children = (
-				AA0001AABBCCDDEEFF0008 /* SettingsManager.swift */,
-				AA0001AABBCCDDEEFF000A /* HistoryManager.swift */,
-				AA0001AABBCCDDEEFF000C /* FavoritesManager.swift */,
+				AA0001AABBCCDDEEFF004E /* BrowserMenuPresenter.swift */,
+				AA0001AABBCCDDEEFF0033 /* SafariMenuViewController.swift */,
+				AA0001AABBCCDDEEFF0034 /* SafariAddressSheetViewController.swift */,
+				AA0001AABBCCDDEEFF0051 /* NativeTextPrompt.swift */,
 			);
-			path = Data;
+			path = Menus;
 			sourceTree = "<group>";
 		};
-		CCGROUP00000007AABBCCDD /* ViewModel */ = {
+		CCGROUP0000FEATINPUT /* Input */ = {
 			isa = PBXGroup;
 			children = (
-				AA0001AABBCCDDEEFF001E /* BrowserViewModel.swift */,
-			);
-			path = ViewModel;
-			sourceTree = "<group>";
-		};
-		CCGROUP00000008AABBCCDD /* ViewController */ = {
-			isa = PBXGroup;
-			children = (
-				AA0001AABBCCDDEEFF0020 /* BrowserViewController.swift */,
+				AA0001AABBCCDDEEFF0044 /* PointerController.swift */,
 				AA0001AABBCCDDEEFF0022 /* ClickpadCaptureView.swift */,
+				AA0001AABBCCDDEEFF0014 /* CursorView.swift */,
 			);
-			path = ViewController;
+			path = Input;
+			sourceTree = "<group>";
+		};
+		CCGROUP0000FEATWEBVIEW /* WebView */ = {
+			isa = PBXGroup;
+			children = (
+				CCGROUP0000FEATBRIDGE /* Bridge */,
+				CCGROUP0000FEATJS /* JS */,
+			);
+			path = WebView;
+			sourceTree = "<group>";
+		};
+		CCGROUP0000FEATBRIDGE /* Bridge */ = {
+			isa = PBXGroup;
+			children = (
+				AA0001AABBCCDDEEFF0001 /* WebViewBridge.h */,
+				AA0001AABBCCDDEEFF0002 /* WebViewBridge.m */,
+				AA0001AABBCCDDEEFF0010 /* WebViewContainer.swift */,
+			);
+			path = Bridge;
+			sourceTree = "<group>";
+		};
+		CCGROUP0000FEATJS /* JS */ = {
+			isa = PBXGroup;
+			children = (
+				AA0001AABBCCDDEEFF000E /* JavaScriptExecutor.swift */,
+				AA0001AABBCCDDEEFF0046 /* LayoutScripting.swift */,
+				AA0001AABBCCDDEEFF0047 /* PointerScripting.swift */,
+				AA0001AABBCCDDEEFF0048 /* VideoFullscreenScripting.swift */,
+			);
+			path = JS;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -263,6 +348,24 @@
 			productReference = B002B8621BAE420500C744AF /* Browser.app */;
 			productType = "com.apple.product-type.application";
 		};
+
+		TTNT0001AABBCCDDEEFF0001 /* BrowserTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = TTCL0001AABBCCDDEEFF0001 /* Build configuration list for PBXNativeTarget "BrowserTests" */;
+			buildPhases = (
+				TTSP0001AABBCCDDEEFF0001 /* Sources */,
+				TTFF0001AABBCCDDEEFF0001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				TTDP0001AABBCCDDEEFF0001 /* PBXTargetDependency */,
+			);
+			name = BrowserTests;
+			productName = BrowserTests;
+			productReference = TTAA0001AABBCCDDEEFF0003 /* BrowserTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -274,6 +377,10 @@
 				TargetAttributes = {
 					B002B8611BAE420500C744AF = {
 						CreatedOnToolsVersion = 14.0;
+					};
+					TTNT0001AABBCCDDEEFF0001 = {
+						CreatedOnToolsVersion = 14.0;
+						TestTargetID = B002B8611BAE420500C744AF;
 					};
 				};
 			};
@@ -291,6 +398,7 @@
 			projectRoot = "";
 			targets = (
 				B002B8611BAE420500C744AF /* Browser */,
+				TTNT0001AABBCCDDEEFF0001 /* BrowserTests */,
 			);
 		};
 /* End PBXProject section */
@@ -318,7 +426,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/sh;
-			shellScript = "buildNumber=$(/usr/libexec/PlistBuddy -c \"Print CFBundleVersion\" \"${PROJECT_DIR}/${INFOPLIST_FILE}\")\nbuildNumber=$(($buildNumber + 1))\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $buildNumber\" \"${PROJECT_DIR}/${INFOPLIST_FILE}\"";
+			shellScript = "echo \"Using MARKETING_VERSION=$(MARKETING_VERSION) CURRENT_PROJECT_VERSION=$(CURRENT_PROJECT_VERSION)\"";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -333,14 +441,17 @@
 				BB0001AABBCCDDEEFF0007 /* SettingsManager.swift in Sources */,
 				BB0001AABBCCDDEEFF0009 /* HistoryManager.swift in Sources */,
 				BB0001AABBCCDDEEFF000B /* FavoritesManager.swift in Sources */,
+				BB0001AABBCCDDEEFF004F /* CredentialStore.swift in Sources */,
 				BB0001AABBCCDDEEFF000D /* JavaScriptExecutor.swift in Sources */,
+				BB0001AABBCCDDEEFF0046 /* LayoutScripting.swift in Sources */,
+				BB0001AABBCCDDEEFF0047 /* PointerScripting.swift in Sources */,
+				BB0001AABBCCDDEEFF0048 /* VideoFullscreenScripting.swift in Sources */,
 				BB0001AABBCCDDEEFF000F /* WebViewContainer.swift in Sources */,
 				BB0001AABBCCDDEEFF0013 /* CursorView.swift in Sources */,
-				BB0001AABBCCDDEEFF0015 /* NavigationBarView.swift in Sources */,
-				BB0001AABBCCDDEEFF0017 /* NavigationBarViewModel.swift in Sources */,
-				BB0001AABBCCDDEEFF0019 /* QuickMenuPresenter.swift in Sources */,
-				BB0001AABBCCDDEEFF001B /* AdvancedMenuPresenter.swift in Sources */,
+				BB0001AABBCCDDEEFF0044 /* PointerController.swift in Sources */,
 				BB0001AABBCCDDEEFF001D /* BrowserViewModel.swift in Sources */,
+				BB0001AABBCCDDEEFF0045 /* URLParser.swift in Sources */,
+				BB0001AABBCCDDEEFF0050 /* VoiceInputSanitizer.swift in Sources */,
 				BB0001AABBCCDDEEFF001F /* BrowserViewController.swift in Sources */,
 				BB0001AABBCCDDEEFF0021 /* ClickpadCaptureView.swift in Sources */,
 				BB0001AABBCCDDEEFF0025 /* DSColor.swift in Sources */,
@@ -349,14 +460,40 @@
 				BB0001AABBCCDDEEFF0028 /* DSMaterial.swift in Sources */,
 				BB0001AABBCCDDEEFF0029 /* DSMotion.swift in Sources */,
 				BB0001AABBCCDDEEFF0030 /* DSShadow.swift in Sources */,
-				BB0001AABBCCDDEEFF0031 /* ThemeManager.swift in Sources */,
 				BB0001AABBCCDDEEFF0032 /* StartPageViewController.swift in Sources */,
+				BB0001AABBCCDDEEFF0049 /* StartPageWallpaperView.swift in Sources */,
+				BB0001AABBCCDDEEFF004A /* StartPageFavoritesGridView.swift in Sources */,
+				BB0001AABBCCDDEEFF004C /* StartPageHistorySectionView.swift in Sources */,
+				BB0001AABBCCDDEEFF004E /* BrowserMenuPresenter.swift in Sources */,
 				BB0001AABBCCDDEEFF0033 /* SafariMenuViewController.swift in Sources */,
 				BB0001AABBCCDDEEFF0034 /* SafariAddressSheetViewController.swift in Sources */,
+				BB0001AABBCCDDEEFF0051 /* NativeTextPrompt.swift in Sources */,
+				BB0001AABBCCDDEEFF0040 /* DimmedMaterialSheetController.swift in Sources */,
+				BB0001AABBCCDDEEFF0041 /* DSButton.swift in Sources */,
+				BB0001AABBCCDDEEFF0043 /* DSHoverHighlight.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
+		TTSP0001AABBCCDDEEFF0001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				TTBB0001AABBCCDDEEFF0001 /* URLParserTests.swift in Sources */,
+				TTBB0001AABBCCDDEEFF0002 /* CredentialStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+
+/* Begin PBXTargetDependency section */
+		TTDP0001AABBCCDDEEFF0001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B002B8611BAE420500C744AF /* Browser */;
+			targetProxy = TTCC0001AABBCCDDEEFF0001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		B002B8741BAE420500C744AF /* Debug */ = {
@@ -384,7 +521,7 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 3;
-				TVOS_DEPLOYMENT_TARGET = 14.0;
+				TVOS_DEPLOYMENT_TARGET = 15.0;
 			};
 			name = Debug;
 		};
@@ -405,7 +542,7 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 3;
-				TVOS_DEPLOYMENT_TARGET = 14.0;
+				TVOS_DEPLOYMENT_TARGET = 15.0;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -416,7 +553,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CURRENT_PROJECT_VERSION = 3000;
 				DEVELOPMENT_TEAM = L74JW3HF8Y;
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
@@ -428,12 +565,13 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5;
+				MARKETING_VERSION = 5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tydebeer.tvbrowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Browser/Browser-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TVOS_DEPLOYMENT_TARGET = 26.0;
+				TVOS_DEPLOYMENT_TARGET = 15.0;
+				ENABLE_TESTABILITY = YES;
 			};
 			name = Debug;
 		};
@@ -443,7 +581,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CURRENT_PROJECT_VERSION = 3000;
 				DEVELOPMENT_TEAM = L74JW3HF8Y;
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
@@ -455,12 +593,52 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5;
+				MARKETING_VERSION = 5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tydebeer.tvbrowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Browser/Browser-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TVOS_DEPLOYMENT_TARGET = 26.0;
+				TVOS_DEPLOYMENT_TARGET = 15.0;
+				ENABLE_TESTABILITY = YES;
+			};
+			name = Release;
+		};
+
+		TTBC0001AABBCCDDEEFF0001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				DEVELOPMENT_TEAM = L74JW3HF8Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 5.0;
+				CURRENT_PROJECT_VERSION = 3000;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tydebeer.tvbrowser.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Browser.app/Browser";
+				TVOS_DEPLOYMENT_TARGET = 15.0;
+			};
+			name = Debug;
+		};
+		TTBC0001AABBCCDDEEFF0002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				DEVELOPMENT_TEAM = L74JW3HF8Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 5.0;
+				CURRENT_PROJECT_VERSION = 3000;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tydebeer.tvbrowser.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Browser.app/Browser";
+				TVOS_DEPLOYMENT_TARGET = 15.0;
 			};
 			name = Release;
 		};
@@ -481,6 +659,16 @@
 			buildConfigurations = (
 				B002B8771BAE420500C744AF /* Debug */,
 				B002B8781BAE420500C744AF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+
+		TTCL0001AABBCCDDEEFF0001 /* Build configuration list for PBXNativeTarget "BrowserTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				TTBC0001AABBCCDDEEFF0001 /* Debug */,
+				TTBC0001AABBCCDDEEFF0002 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

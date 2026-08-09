@@ -2,7 +2,7 @@ import UIKit
 
 enum DSTypography {
 
-    private static let tvScale: CGFloat = 1.55
+    private static let tvScale: CGFloat = DSMetrics.tvScale
 
     private static func scaled(_ size: CGFloat) -> CGFloat {
         (size * tvScale).rounded()

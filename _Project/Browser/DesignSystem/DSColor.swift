@@ -117,4 +117,57 @@ enum DSColor {
     static let trafficMin = hex(0xFEBC2E)
     static let trafficMax = hex(0x28C840)
     static let trafficIdle = hex(0xC8C8C8)
+
+    // MARK: - App surfaces
+
+    static let scrim = dynamic(
+        light: UIColor.black.withAlphaComponent(0.28),
+        dark: UIColor.black.withAlphaComponent(0.45)
+    )
+    static let webCanvas = dynamic(light: hex(0xFFFFFF), dark: hex(0x000000))
+    static let startPageGradientTop = dynamic(
+        light: UIColor(red: 0.84, green: 0.91, blue: 1.0, alpha: 1),
+        dark: UIColor(red: 0.08, green: 0.10, blue: 0.16, alpha: 1)
+    )
+    static let startPageGradientBottom = dynamic(
+        light: UIColor(red: 0.93, green: 0.95, blue: 1.0, alpha: 1),
+        dark: UIColor(red: 0.02, green: 0.02, blue: 0.04, alpha: 1)
+    )
+
+    /// Resolves a dynamic color to `#RRGGBB` for the current (or given) trait collection.
+    static func cssHex(_ color: UIColor, style: UIUserInterfaceStyle? = nil) -> String {
+        let trait: UITraitCollection
+        if let style {
+            trait = UITraitCollection(userInterfaceStyle: style)
+        } else {
+            trait = UITraitCollection.current
+        }
+        let resolved = color.resolvedColor(with: trait)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        resolved.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let ri = Int((r * 255).rounded())
+        let gi = Int((g * 255).rounded())
+        let bi = Int((b * 255).rounded())
+        return String(format: "#%02X%02X%02X", ri, gi, bi)
+    }
+
+    static func cssRGBA(_ color: UIColor, alpha: CGFloat? = nil, style: UIUserInterfaceStyle? = nil) -> String {
+        let trait: UITraitCollection
+        if let style {
+            trait = UITraitCollection(userInterfaceStyle: style)
+        } else {
+            trait = UITraitCollection.current
+        }
+        let resolved = color.resolvedColor(with: trait)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        resolved.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let outA = alpha ?? a
+        return String(
+            format: "rgba(%d,%d,%d,%.3f)",
+            Int((r * 255).rounded()),
+            Int((g * 255).rounded()),
+            Int((b * 255).rounded()),
+            outA
+        )
+    }
 }

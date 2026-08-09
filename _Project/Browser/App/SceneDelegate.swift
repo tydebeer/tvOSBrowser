@@ -12,8 +12,8 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = scene as? UIWindowScene else { return }
         let window = UIWindow(windowScene: windowScene)
         window.rootViewController = BrowserViewController()
+        window.overrideUserInterfaceStyle = .unspecified
         window.makeKeyAndVisible()
-        ThemeManager.apply(to: window)
         self.window = window
     }
 }
