@@ -222,8 +222,6 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
         return;
     }
 
-    NSValue *pointValue = [NSValue valueWithCGPoint:point];
-
     // Private mouse simulation (present on some WebKit builds).
     NSArray<NSString *> *downSels = @[ @"_simulateMouseDownAt:", @"simulateMouseDownAt:" ];
     NSArray<NSString *> *upSels   = @[ @"_simulateMouseUpAt:",   @"simulateMouseUpAt:" ];
@@ -261,9 +259,30 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
             }
         }
     }
+}
 
-    // Also hit-test the content view with a synthetic UITouch-like path via JS fallback caller.
-    (void)pointValue;
+- (void)simulateMouseMoveAtPoint:(CGPoint)point {
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self simulateMouseMoveAtPoint:point];
+        });
+        return;
+    }
+    if (!_wkWebView) return;
+
+    NSArray<NSString *> *moveSels = @[
+        @"_simulateMouseMoveAt:",
+        @"simulateMouseMoveAt:",
+        @"_simulateMouseMotionAt:",
+        @"simulateMouseMotionAt:"
+    ];
+    for (NSString *name in moveSels) {
+        SEL sel = NSSelectorFromString(name);
+        if ([_wkWebView respondsToSelector:sel]) {
+            ((void (*)(id, SEL, CGPoint))objc_msgSend)(_wkWebView, sel, point);
+            return;
+        }
+    }
 }
 
 // MARK: - Cache & Cookies (all via NSClassFromString — no WebKit headers needed)

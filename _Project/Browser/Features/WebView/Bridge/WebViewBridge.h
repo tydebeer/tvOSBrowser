@@ -37,6 +37,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)evaluateJavaScriptAsUserGesture:(NSString *)js completionHandler:(void (^ _Nullable)(id _Nullable result, NSError * _Nullable error))completionHandler;
 /// Best-effort native click at a point in web-view coordinates.
 - (void)simulateClickAtPoint:(CGPoint)point;
+/// Best-effort native mouse move (drives real CSS :hover when WebKit supports it).
+- (void)simulateMouseMoveAtPoint:(CGPoint)point;
 - (void)clearCache;
 - (void)clearCookiesWithCompletion:(void (^)(void))completion;
 - (void)setFrame:(CGRect)frame;

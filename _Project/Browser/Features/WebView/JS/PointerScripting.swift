@@ -39,7 +39,12 @@ extension JavaScriptExecutor {
                 window.__tvbPointerHelpersInstalled = true;
                 \(Self.jsDropdownHelpers)
                 \(Self.jsHitTestHelpers)
+                \(Self.jsHoverEmulationHelpers)
                 \(Self.jsFullscreenHelpers)
+                window.__tvbInstallDesktopPointerCapability();
+                window.__tvbInstallHoverCSSMirror();
+            } else {
+                window.__tvbInstallHoverCSSMirror();
             }
         })()
         """
@@ -60,26 +65,27 @@ extension JavaScriptExecutor {
     func updatePointer(at viewPoint: CGPoint) async -> Bool {
         let pageZoom = await currentPageZoom()
         let suppressDropdowns = shouldSuppressDropdownHover
+        let webBridge = bridge
+        await MainActor.run {
+            webBridge?.simulateMouseMove(at: viewPoint)
+        }
         let js = """
         (function() {
             \(Self.jsPointConversion(viewPoint, pageZoom: pageZoom))
             if (!window.__tvbOpenDropdown) { \(Self.jsDropdownHelpers) }
             if (!window.__tvbResolveTargetAt) { \(Self.jsHitTestHelpers) }
+            if (!window.__tvbApplyHoverAt) { \(Self.jsHoverEmulationHelpers) }
 
-            if (window.__tvbHoverEl) {
-                window.__tvbHoverEl = null;
-            }
-            var resolved = window.__tvbResolveTargetAt(x, y, 0);
-            var el = resolved.el;
-            var target = resolved.target;
+            var el = document.elementFromPoint(x, y);
             if (!el) {
+                window.__tvbApplyHoverAt(null, x, y);
                 if (!\(suppressDropdowns ? "true" : "false") && !window.__tvbPinnedOverlay) {
                     window.__tvbCloseDropdowns(null);
                 }
                 return false;
             }
 
-            \(Self.jsDispatchHover)
+            window.__tvbApplyHoverAt(el, x, y);
 
             if (!\(suppressDropdowns ? "true" : "false")) {
                 var ddRoot = el.closest('.dropdown, .vipmenu, .nav-item.dropdown');
@@ -95,11 +101,9 @@ extension JavaScriptExecutor {
                 }
             }
 
-            if (target) {
-                window.__tvbHoverEl = target;
-                return true;
-            }
-            return false;
+            var clickable = window.__tvbClickableFrom(el);
+            window.__tvbHoverEl = clickable || el;
+            return !!clickable;
         })()
         """
         let result = try? await evaluateJavaScript(js)
@@ -558,31 +562,241 @@ extension JavaScriptExecutor {
             };
     """
 
-    static let jsDispatchHover = """
-            var events = ['mouseover', 'mouseenter', 'mousemove'];
-            var chain = [];
-            var node = el;
-            while (node && node !== document.documentElement) {
-                chain.unshift(node);
-                node = node.parentElement;
-            }
-            for (var i = 0; i < chain.length; i++) {
-                for (var j = 0; j < events.length; j++) {
-                    chain[i].dispatchEvent(new MouseEvent(events[j], {
-                        bubbles: true,
-                        cancelable: true,
-                        view: window,
-                        clientX: x,
-                        clientY: y
-                    }));
+    static let jsHoverEmulationHelpers = """
+            window.__tvbHoverClass = 'tvb-hovered';
+            window.__tvbMakeMQ = function(query, matches) {
+                return {
+                    matches: !!matches,
+                    media: query,
+                    onchange: null,
+                    addListener: function() {},
+                    removeListener: function() {},
+                    addEventListener: function() {},
+                    removeEventListener: function() {},
+                    dispatchEvent: function() { return false; }
+                };
+            };
+            window.__tvbInstallDesktopPointerCapability = function() {
+                if (window.__tvbDesktopPointerCapabilityInstalled) return;
+                window.__tvbDesktopPointerCapabilityInstalled = true;
+                try {
+                    Object.defineProperty(navigator, 'maxTouchPoints', { get: function() { return 0; }, configurable: true });
+                } catch (e) {}
+                var originalMatchMedia = window.matchMedia.bind(window);
+                window.matchMedia = function(query) {
+                    var q = String(query || '').toLowerCase().replace(/\\s+/g, '');
+                    if (q.indexOf('(hover:none)') !== -1 || q.indexOf('(any-hover:none)') !== -1) {
+                        return window.__tvbMakeMQ(query, false);
+                    }
+                    if (q.indexOf('(hover:hover)') !== -1 || q.indexOf('(any-hover:hover)') !== -1) {
+                        return window.__tvbMakeMQ(query, true);
+                    }
+                    if (q.indexOf('(pointer:coarse)') !== -1 || q.indexOf('(any-pointer:coarse)') !== -1) {
+                        return window.__tvbMakeMQ(query, false);
+                    }
+                    if (q.indexOf('(pointer:fine)') !== -1 || q.indexOf('(any-pointer:fine)') !== -1) {
+                        return window.__tvbMakeMQ(query, true);
+                    }
+                    if (q.indexOf('(pointer:none)') !== -1) {
+                        return window.__tvbMakeMQ(query, false);
+                    }
+                    return originalMatchMedia(query);
+                };
+            };
+            window.__tvbMirrorHoverSelectors = function(selectorText) {
+                if (!selectorText || selectorText.indexOf(':hover') === -1) return null;
+                if (selectorText.indexOf('.tvb-hovered') !== -1) return null;
+                var parts = selectorText.split(',');
+                var extras = [];
+                for (var i = 0; i < parts.length; i++) {
+                    var part = parts[i].trim();
+                    if (!part || part.indexOf(':hover') === -1) continue;
+                    extras.push(part.replace(/:hover/g, '.' + window.__tvbHoverClass));
                 }
-            }
-            document.dispatchEvent(new MouseEvent('mousemove', {
-                bubbles: true,
-                cancelable: true,
-                view: window,
-                clientX: x,
-                clientY: y
-            }));
+                return extras.length ? extras.join(', ') : null;
+            };
+            window.__tvbRewriteStyleSheet = function(sheet) {
+                if (!sheet || sheet.__tvbHoverMirrored) return;
+                var rules;
+                try { rules = sheet.cssRules || sheet.rules; } catch (e) { return; }
+                if (!rules) return;
+                sheet.__tvbHoverMirrored = true;
+                var toInsert = [];
+                function walk(list) {
+                    for (var i = 0; i < list.length; i++) {
+                        var rule = list[i];
+                        if (!rule) continue;
+                        if (rule.cssRules) {
+                            walk(rule.cssRules);
+                            continue;
+                        }
+                        if (!rule.selectorText || !rule.style) continue;
+                        var mirrored = window.__tvbMirrorHoverSelectors(rule.selectorText);
+                        if (!mirrored) continue;
+                        toInsert.push({ sheet: sheet, css: mirrored + '{' + rule.style.cssText + '}' });
+                    }
+                }
+                walk(rules);
+                for (var j = 0; j < toInsert.length; j++) {
+                    try { toInsert[j].sheet.insertRule(toInsert[j].css, toInsert[j].sheet.cssRules.length); } catch (e) {}
+                }
+            };
+            window.__tvbInstallHoverCSSMirror = function() {
+                window.__tvbInstallDesktopPointerCapability();
+                try {
+                    var sheets = document.styleSheets;
+                    for (var i = 0; i < sheets.length; i++) window.__tvbRewriteStyleSheet(sheets[i]);
+                } catch (e) {}
+                if (window.__tvbHoverCSSObserver) return;
+                window.__tvbHoverCSSObserver = new MutationObserver(function(mutations) {
+                    var needsScan = false;
+                    for (var m = 0; m < mutations.length; m++) {
+                        var nodes = mutations[m].addedNodes;
+                        for (var n = 0; n < nodes.length; n++) {
+                            var node = nodes[n];
+                            if (!node || node.nodeType !== 1) continue;
+                            var tag = (node.tagName || '').toUpperCase();
+                            if (tag === 'STYLE' || tag === 'LINK') needsScan = true;
+                        }
+                    }
+                    if (!needsScan) return;
+                    setTimeout(function() {
+                        try {
+                            var sheets = document.styleSheets;
+                            for (var i = 0; i < sheets.length; i++) {
+                                sheets[i].__tvbHoverMirrored = false;
+                                window.__tvbRewriteStyleSheet(sheets[i]);
+                            }
+                        } catch (e) {}
+                    }, 50);
+                });
+                var root = document.documentElement;
+                if (root) window.__tvbHoverCSSObserver.observe(root, { childList: true, subtree: true });
+            };
+            window.__tvbAncestorChain = function(el) {
+                var chain = [];
+                var node = el;
+                while (node && node.nodeType === 1 && node !== document.documentElement) {
+                    chain.push(node);
+                    node = node.parentElement;
+                }
+                return chain;
+            };
+            window.__tvbTrustEvent = function(evt) {
+                try { Object.defineProperty(evt, 'isTrusted', { get: function() { return true; } }); } catch (e) {}
+                return evt;
+            };
+            window.__tvbFirePointerLike = function(target, type, Ctor, x, y, related, extra) {
+                if (!target || !Ctor) return;
+                var init = {
+                    bubbles: true,
+                    cancelable: true,
+                    composed: true,
+                    view: window,
+                    clientX: x,
+                    clientY: y,
+                    screenX: x,
+                    screenY: y,
+                    button: 0,
+                    buttons: 0,
+                    relatedTarget: related || null
+                };
+                if (extra) for (var k in extra) init[k] = extra[k];
+                var evt = new Ctor(type, init);
+                window.__tvbTrustEvent(evt);
+                try { target.dispatchEvent(evt); } catch (e) {}
+            };
+            window.__tvbClearHoverClasses = function(chain) {
+                if (!chain) return;
+                for (var i = 0; i < chain.length; i++) {
+                    try { chain[i].classList.remove(window.__tvbHoverClass); } catch (e) {}
+                }
+            };
+            window.__tvbApplyHoverClasses = function(chain) {
+                if (!chain) return;
+                for (var i = 0; i < chain.length; i++) {
+                    try { chain[i].classList.add(window.__tvbHoverClass); } catch (e) {}
+                }
+            };
+            window.__tvbApplyHoverAt = function(el, x, y) {
+                var prevEl = window.__tvbHoverLeaf || null;
+                var prevChain = window.__tvbHoverChain || [];
+                if (!el) {
+                    if (prevEl) {
+                        window.__tvbFirePointerLike(prevEl, 'pointerout', typeof PointerEvent === 'function' ? PointerEvent : null, x, y, null, { pointerId: 1, pointerType: 'mouse', isPrimary: true });
+                        window.__tvbFirePointerLike(prevEl, 'pointerleave', typeof PointerEvent === 'function' ? PointerEvent : null, x, y, null, { pointerId: 1, pointerType: 'mouse', isPrimary: true, bubbles: false });
+                        window.__tvbFirePointerLike(prevEl, 'mouseout', MouseEvent, x, y, null);
+                        for (var li = 0; li < prevChain.length; li++) {
+                            window.__tvbFirePointerLike(prevChain[li], 'mouseleave', MouseEvent, x, y, null);
+                        }
+                    }
+                    window.__tvbClearHoverClasses(prevChain);
+                    window.__tvbHoverLeaf = null;
+                    window.__tvbHoverChain = [];
+                    return;
+                }
+
+                if (el === prevEl) {
+                    if (typeof PointerEvent === 'function') {
+                        window.__tvbFirePointerLike(el, 'pointermove', PointerEvent, x, y, null, { pointerId: 1, pointerType: 'mouse', isPrimary: true });
+                    }
+                    window.__tvbFirePointerLike(el, 'mousemove', MouseEvent, x, y, null);
+                    document.dispatchEvent(window.__tvbTrustEvent(new MouseEvent('mousemove', {
+                        bubbles: true, cancelable: true, view: window, clientX: x, clientY: y
+                    })));
+                    return;
+                }
+
+                var nextChain = window.__tvbAncestorChain(el);
+                var leaving = [];
+                for (var p = 0; p < prevChain.length; p++) {
+                    if (nextChain.indexOf(prevChain[p]) === -1) leaving.push(prevChain[p]);
+                }
+                var entering = [];
+                for (var n = 0; n < nextChain.length; n++) {
+                    if (prevChain.indexOf(nextChain[n]) === -1) entering.push(nextChain[n]);
+                }
+
+                if (prevEl) {
+                    if (typeof PointerEvent === 'function') {
+                        window.__tvbFirePointerLike(prevEl, 'pointerout', PointerEvent, x, y, el, { pointerId: 1, pointerType: 'mouse', isPrimary: true });
+                    }
+                    window.__tvbFirePointerLike(prevEl, 'mouseout', MouseEvent, x, y, el);
+                    for (var l = 0; l < leaving.length; l++) {
+                        if (typeof PointerEvent === 'function') {
+                            window.__tvbFirePointerLike(leaving[l], 'pointerleave', PointerEvent, x, y, el, { pointerId: 1, pointerType: 'mouse', isPrimary: true, bubbles: false });
+                        }
+                        window.__tvbFirePointerLike(leaving[l], 'mouseleave', MouseEvent, x, y, el);
+                        try { leaving[l].classList.remove(window.__tvbHoverClass); } catch (e) {}
+                    }
+                }
+
+                if (typeof PointerEvent === 'function') {
+                    window.__tvbFirePointerLike(el, 'pointerover', PointerEvent, x, y, prevEl, { pointerId: 1, pointerType: 'mouse', isPrimary: true });
+                }
+                window.__tvbFirePointerLike(el, 'mouseover', MouseEvent, x, y, prevEl);
+                for (var eIdx = entering.length - 1; eIdx >= 0; eIdx--) {
+                    if (typeof PointerEvent === 'function') {
+                        window.__tvbFirePointerLike(entering[eIdx], 'pointerenter', PointerEvent, x, y, prevEl, { pointerId: 1, pointerType: 'mouse', isPrimary: true, bubbles: false });
+                    }
+                    window.__tvbFirePointerLike(entering[eIdx], 'mouseenter', MouseEvent, x, y, prevEl);
+                    try { entering[eIdx].classList.add(window.__tvbHoverClass); } catch (err) {}
+                }
+
+                if (typeof PointerEvent === 'function') {
+                    window.__tvbFirePointerLike(el, 'pointermove', PointerEvent, x, y, null, { pointerId: 1, pointerType: 'mouse', isPrimary: true });
+                }
+                window.__tvbFirePointerLike(el, 'mousemove', MouseEvent, x, y, null);
+                document.dispatchEvent(window.__tvbTrustEvent(new MouseEvent('mousemove', {
+                    bubbles: true, cancelable: true, view: window, clientX: x, clientY: y
+                })));
+
+                window.__tvbHoverLeaf = el;
+                window.__tvbHoverChain = nextChain;
+            };
+    """
+
+    static let jsDispatchHover = """
+            window.__tvbApplyHoverAt(el, x, y);
     """
 }
