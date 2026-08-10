@@ -58,6 +58,43 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
     id config = [[configClass alloc] init];
     [config setValue:@YES forKey:@"allowsInlineMediaPlayback"];
 
+    // Advertise a desktop-like pointer early so sites don't pick a touch/no-hover UI.
+    Class userScriptClass = NSClassFromString(@"WKUserScript");
+    id userContent = [config valueForKey:@"userContentController"];
+    if (userScriptClass && userContent) {
+        NSString *earlyJS =
+            @"(function(){"
+            "try{Object.defineProperty(navigator,'maxTouchPoints',{get:function(){return 0;},configurable:true});}catch(e){}"
+            "if(window.__tvbEarlyMQ)return;window.__tvbEarlyMQ=1;"
+            "var orig=window.matchMedia.bind(window);"
+            "window.matchMedia=function(query){"
+            "var q=String(query||'').toLowerCase().replace(/\\s+/g,'');"
+            "function mq(m){return{matches:!!m,media:query,onchange:null,"
+            "addListener:function(){},removeListener:function(){},"
+            "addEventListener:function(){},removeEventListener:function(){},"
+            "dispatchEvent:function(){return false;}};"
+            "}"
+            "if(q.indexOf('(hover:none)')!==-1||q.indexOf('(any-hover:none)')!==-1)return mq(false);"
+            "if(q.indexOf('(hover:hover)')!==-1||q.indexOf('(any-hover:hover)')!==-1)return mq(true);"
+            "if(q.indexOf('(pointer:coarse)')!==-1||q.indexOf('(any-pointer:coarse)')!==-1)return mq(false);"
+            "if(q.indexOf('(pointer:fine)')!==-1||q.indexOf('(any-pointer:fine)')!==-1)return mq(true);"
+            "if(q.indexOf('(pointer:none)')!==-1)return mq(false);"
+            "return orig(query);"
+            "};"
+            "})();";
+        // WKUserScriptInjectionTimeAtDocumentStart == 0
+        SEL userScriptInitSel = NSSelectorFromString(@"initWithSource:injectionTime:forMainFrameOnly:");
+        if ([userScriptClass instancesRespondToSelector:userScriptInitSel]) {
+            id script = ((id (*)(id, SEL, NSString *, NSInteger, BOOL))objc_msgSend)(
+                [userScriptClass alloc], userScriptInitSel, earlyJS, 0, YES
+            );
+            SEL addSel = NSSelectorFromString(@"addUserScript:");
+            if (script && [userContent respondsToSelector:addSel]) {
+                ((void (*)(id, SEL, id))objc_msgSend)(userContent, addSel, script);
+            }
+        }
+    }
+
     // Create WKWebView via runtime — avoids tvOS SDK compile restrictions
     id wkAlloc = [wkClass alloc];
     SEL initSel = NSSelectorFromString(@"initWithFrame:configuration:");

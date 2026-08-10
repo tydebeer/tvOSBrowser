@@ -24,7 +24,9 @@ final class BrowserViewController: GCEventViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        controllerUserInteractionEnabled = false
+        // true → Siri Remote clickpad reaches UIKit (ClickpadCaptureView).
+        // false would route input only to Game Controller profiles, so the pad wouldn't move the cursor.
+        controllerUserInteractionEnabled = true
         view.backgroundColor = DSColor.background
         setupLayout()
         setupStartPage()

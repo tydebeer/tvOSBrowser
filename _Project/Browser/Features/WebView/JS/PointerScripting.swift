@@ -616,11 +616,11 @@ extension JavaScriptExecutor {
                 return extras.length ? extras.join(', ') : null;
             };
             window.__tvbRewriteStyleSheet = function(sheet) {
-                if (!sheet || sheet.__tvbHoverMirrored) return;
+                if (!sheet) return;
                 var rules;
                 try { rules = sheet.cssRules || sheet.rules; } catch (e) { return; }
-                if (!rules) return;
-                sheet.__tvbHoverMirrored = true;
+                if (!rules || !rules.length) return;
+                if (!sheet.__tvbHoverMirroredSet) sheet.__tvbHoverMirroredSet = {};
                 var toInsert = [];
                 function walk(list) {
                     for (var i = 0; i < list.length; i++) {
@@ -633,42 +633,49 @@ extension JavaScriptExecutor {
                         if (!rule.selectorText || !rule.style) continue;
                         var mirrored = window.__tvbMirrorHoverSelectors(rule.selectorText);
                         if (!mirrored) continue;
-                        toInsert.push({ sheet: sheet, css: mirrored + '{' + rule.style.cssText + '}' });
+                        if (sheet.__tvbHoverMirroredSet[mirrored]) continue;
+                        sheet.__tvbHoverMirroredSet[mirrored] = 1;
+                        toInsert.push(mirrored + '{' + rule.style.cssText + '}');
                     }
                 }
                 walk(rules);
                 for (var j = 0; j < toInsert.length; j++) {
-                    try { toInsert[j].sheet.insertRule(toInsert[j].css, toInsert[j].sheet.cssRules.length); } catch (e) {}
+                    try { sheet.insertRule(toInsert[j], sheet.cssRules.length); } catch (e) {}
                 }
             };
-            window.__tvbInstallHoverCSSMirror = function() {
-                window.__tvbInstallDesktopPointerCapability();
+            window.__tvbScanAllStyleSheets = function() {
                 try {
                     var sheets = document.styleSheets;
                     for (var i = 0; i < sheets.length; i++) window.__tvbRewriteStyleSheet(sheets[i]);
                 } catch (e) {}
+            };
+            window.__tvbWatchStylesheetNode = function(node) {
+                if (!node || node.__tvbHoverLoadHooked) return;
+                var tag = (node.tagName || '').toUpperCase();
+                if (tag !== 'LINK' && tag !== 'STYLE') return;
+                node.__tvbHoverLoadHooked = true;
+                var rescan = function() { setTimeout(window.__tvbScanAllStyleSheets, 0); };
+                if (tag === 'LINK') {
+                    node.addEventListener('load', rescan);
+                    node.addEventListener('error', rescan);
+                }
+                rescan();
+            };
+            window.__tvbInstallHoverCSSMirror = function() {
+                window.__tvbInstallDesktopPointerCapability();
+                window.__tvbScanAllStyleSheets();
+                try {
+                    var existing = document.querySelectorAll('link[rel~="stylesheet"], style');
+                    for (var i = 0; i < existing.length; i++) window.__tvbWatchStylesheetNode(existing[i]);
+                } catch (e) {}
                 if (window.__tvbHoverCSSObserver) return;
                 window.__tvbHoverCSSObserver = new MutationObserver(function(mutations) {
-                    var needsScan = false;
                     for (var m = 0; m < mutations.length; m++) {
                         var nodes = mutations[m].addedNodes;
                         for (var n = 0; n < nodes.length; n++) {
-                            var node = nodes[n];
-                            if (!node || node.nodeType !== 1) continue;
-                            var tag = (node.tagName || '').toUpperCase();
-                            if (tag === 'STYLE' || tag === 'LINK') needsScan = true;
+                            window.__tvbWatchStylesheetNode(nodes[n]);
                         }
                     }
-                    if (!needsScan) return;
-                    setTimeout(function() {
-                        try {
-                            var sheets = document.styleSheets;
-                            for (var i = 0; i < sheets.length; i++) {
-                                sheets[i].__tvbHoverMirrored = false;
-                                window.__tvbRewriteStyleSheet(sheets[i]);
-                            }
-                        } catch (e) {}
-                    }, 50);
                 });
                 var root = document.documentElement;
                 if (root) window.__tvbHoverCSSObserver.observe(root, { childList: true, subtree: true });
@@ -688,8 +695,10 @@ extension JavaScriptExecutor {
             };
             window.__tvbFirePointerLike = function(target, type, Ctor, x, y, related, extra) {
                 if (!target || !Ctor) return;
+                var noBubble = type === 'mouseenter' || type === 'mouseleave' ||
+                    type === 'pointerenter' || type === 'pointerleave';
                 var init = {
-                    bubbles: true,
+                    bubbles: !noBubble,
                     cancelable: true,
                     composed: true,
                     view: window,
