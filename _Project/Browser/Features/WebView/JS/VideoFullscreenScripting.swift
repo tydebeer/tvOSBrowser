@@ -6,6 +6,31 @@ extension JavaScriptExecutor {
         _ = try? await evaluateJavaScript("(function(){ if (window.__tvbExitVideoFullscreen) return window.__tvbExitVideoFullscreen(); return false; })()")
     }
 
+    /// Seek the fullscreen (or best-matching) video by `seconds` (negative = rewind).
+    @discardableResult
+    func seekFullscreenVideo(by seconds: Double) async -> Bool {
+        let js = """
+        (function() {
+            var video = window.__tvbFullscreenVideo
+                || document.querySelector('video[data-tvb-fs=\"1\"]')
+                || Array.prototype.find.call(document.querySelectorAll('video'), function(v) { return !v.paused; })
+                || document.querySelector('video');
+            if (!video) return false;
+            var delta = \(seconds);
+            var next = (video.currentTime || 0) + delta;
+            if (isFinite(video.duration) && video.duration > 0) {
+                next = Math.max(0, Math.min(video.duration, next));
+            } else {
+                next = Math.max(0, next);
+            }
+            try { video.currentTime = next; } catch (e) { return false; }
+            return true;
+        })()
+        """
+        let result = try? await evaluateJavaScriptAsUserGesture(js)
+        return Self.boolValue(result)
+    }
+
     /// Toggle play/pause on the most relevant video on the page.
     func toggleMediaPlayback() async {
         let js = """

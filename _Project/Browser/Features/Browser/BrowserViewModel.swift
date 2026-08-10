@@ -301,6 +301,12 @@ final class BrowserViewModel {
         }
     }
 
+    func seekFullscreenVideo(by seconds: Double) {
+        Task {
+            _ = await webContainer.jsExecutor.seekFullscreenVideo(by: seconds)
+        }
+    }
+
     func toggleMediaPlayback() {
         guard !isShowingStartPage else { return }
         Task {

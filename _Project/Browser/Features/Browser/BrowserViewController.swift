@@ -14,6 +14,7 @@ final class BrowserViewController: GCEventViewController {
     private var lastSelectClickTime: TimeInterval = 0
     private var lastMenuPressTime: TimeInterval = 0
     private var pendingMenuWorkItem: DispatchWorkItem?
+    private var cursorIdleHideWorkItem: DispatchWorkItem?
     private var isSiteVideoFullscreen = false
     private var didRunStartup = false
     private var didInstallWebContainer = false
@@ -21,6 +22,11 @@ final class BrowserViewController: GCEventViewController {
     private var cachedDocumentSize: CGSize = .zero
 
     override var canBecomeFirstResponder: Bool { true }
+
+    /// Remote-pad touches begin in the focused view; keep the clickpad focused.
+    override var preferredFocusEnvironments: [UIFocusEnvironment] {
+        [clickpadCaptureView]
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -42,6 +48,7 @@ final class BrowserViewController: GCEventViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         _ = becomeFirstResponder()
+        reclaimPointerControl()
         if !didRunStartup {
             didRunStartup = true
             viewModel.handleStartup()
@@ -185,6 +192,7 @@ final class BrowserViewController: GCEventViewController {
 
     private func setupClickpad() {
         clickpadCaptureView.onMoved = { [weak self] dx, dy in
+            self?.noteCursorActivity()
             self?.pointer.moveBy(dx: dx, dy: dy)
         }
         clickpadCaptureView.onTapped = { [weak self] in
@@ -192,6 +200,7 @@ final class BrowserViewController: GCEventViewController {
         }
         clickpadCaptureView.onScrolled = { [weak self] dx, dy in
             guard let self else { return }
+            self.noteCursorActivity()
             if self.viewModel.isShowingStartPage {
                 self.scrollStartPageBy(dx: dx, dy: dy)
             } else {
@@ -202,7 +211,11 @@ final class BrowserViewController: GCEventViewController {
 
     private func setupPointer() {
         pointer.onPositionChanged = { [weak self] point in
-            self?.cursorView.moveTo(point)
+            guard let self else { return }
+            self.cursorView.moveTo(point)
+            if self.isSiteVideoFullscreen {
+                self.noteCursorActivity()
+            }
         }
         pointer.onHoverUpdate = { [weak self] _ in
             self?.updatePointerHover()
@@ -232,6 +245,7 @@ final class BrowserViewController: GCEventViewController {
 
     private func fireSelectClick() {
         reclaimPointerControl()
+        noteCursorActivity()
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastSelectClickTime > 0.35 else { return }
         lastSelectClickTime = now
@@ -239,6 +253,12 @@ final class BrowserViewController: GCEventViewController {
     }
 
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        // Do not call super for Menu — UIKit would treat it as system back and
+        // break our single/double-press handling.
+        if presses.contains(where: { $0.type == .menu }) {
+            return
+        }
+
         if presses.contains(where: { $0.type == .select }) {
             clickpadCaptureView.beginClickHold()
             return
@@ -252,6 +272,17 @@ final class BrowserViewController: GCEventViewController {
         }
 
         reclaimPointerControl()
+
+        if isSiteVideoFullscreen, press.type == .leftArrow || press.type == .rightArrow {
+            let delta = press.type == .leftArrow
+                ? -DSMetrics.videoFullscreenSeekSeconds
+                : DSMetrics.videoFullscreenSeekSeconds
+            noteCursorActivity()
+            viewModel.seekFullscreenVideo(by: delta)
+            return
+        }
+
+        noteCursorActivity()
         pointer.beginDirectionalPress(press.type)
     }
 
@@ -276,6 +307,7 @@ final class BrowserViewController: GCEventViewController {
                 fireSelectClick()
             }
         case .playPause:
+            noteCursorActivity()
             viewModel.toggleMediaPlayback()
         default:
             super.pressesEnded(presses, with: event)
@@ -285,6 +317,11 @@ final class BrowserViewController: GCEventViewController {
     override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         if presses.contains(where: { $0.type == .select }) {
             clickpadCaptureView.endClickHold()
+        }
+        // Don't forward Menu cancels to super — same reason as pressesBegan.
+        if presses.contains(where: { $0.type == .menu }) {
+            pointer.cancelDirectionalPress()
+            return
         }
         pointer.cancelDirectionalPress()
         super.pressesCancelled(presses, with: event)
@@ -499,6 +536,8 @@ final class BrowserViewController: GCEventViewController {
     private func reclaimPointerControl() {
         _ = becomeFirstResponder()
         view.becomeFirstResponder()
+        setNeedsFocusUpdate()
+        updateFocusIfNeeded()
     }
 
     private func enterSiteVideoFullscreen() {
@@ -507,6 +546,7 @@ final class BrowserViewController: GCEventViewController {
         contentHost.backgroundColor = .black
         viewModel.webContainer.backgroundColor = .black
         reclaimPointerControl()
+        noteCursorActivity()
     }
 
     private func exitSiteVideoFullscreen() {
@@ -515,11 +555,31 @@ final class BrowserViewController: GCEventViewController {
             return
         }
         isSiteVideoFullscreen = false
+        cursorIdleHideWorkItem?.cancel()
+        cursorIdleHideWorkItem = nil
+        cursorView.setCursorVisible(true, animated: false)
         viewModel.exitVideoFullscreen()
         view.backgroundColor = DSColor.background
         contentHost.backgroundColor = .clear
         viewModel.webContainer.applyCanvasColors()
         reclaimPointerControl()
+    }
+
+    private func noteCursorActivity() {
+        cursorView.setCursorVisible(true, animated: true)
+        cursorIdleHideWorkItem?.cancel()
+        cursorIdleHideWorkItem = nil
+        guard isSiteVideoFullscreen else { return }
+
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.isSiteVideoFullscreen else { return }
+            self.cursorView.setCursorVisible(false, animated: true)
+        }
+        cursorIdleHideWorkItem = work
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + DSMetrics.cursorFullscreenIdleHideDelay,
+            execute: work
+        )
     }
 
     private func handleMenuPress() {

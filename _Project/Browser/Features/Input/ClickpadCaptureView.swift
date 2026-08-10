@@ -6,7 +6,8 @@ import UIKit
 /// - Click-and-drag (select held while dragging): scroll the page
 /// - Multi-touch drag (when the remote delivers multiple touches): scroll the page
 ///
-/// Note: tvOS does not expose `isMultipleTouchEnabled` or pan `minimum/maximumNumberOfTouches`.
+/// tvOS delivers remote-pad touches at the **focused** view’s center, so this view
+/// must be focusable and preferred for focus or it never sees the pad.
 final class ClickpadCaptureView: UIView {
 
     var onMoved: ((CGFloat, CGFloat) -> Void)?
@@ -38,14 +39,22 @@ final class ClickpadCaptureView: UIView {
     private var touchMovedDistance: CGFloat = 0
     private var lastTouchLocation: CGPoint?
     private var activeTouchCount = 0
+    private var panMovedDistance: CGFloat = 0
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .clear
         isUserInteractionEnabled = true
+
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
+        pan.cancelsTouchesInView = false
+        addGestureRecognizer(pan)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
+
+    override var canBecomeFocused: Bool { true }
 
     func beginClickHold() {
         isClickHeld = true
@@ -55,29 +64,72 @@ final class ClickpadCaptureView: UIView {
         isClickHeld = false
     }
 
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        let indirect = touches.filter { $0.type == .indirect }
-        guard !indirect.isEmpty else { return }
-        activeTouchCount = activeIndirectTouchCount(in: event) ?? indirect.count
-        if let touch = indirect.first {
-            let loc = touch.location(in: self)
-            touchStart = loc
-            lastTouchLocation = loc
+    @objc private func handlePan(_ gr: UIPanGestureRecognizer) {
+        switch gr.state {
+        case .began:
+            panMovedDistance = 0
             touchMovedDistance = 0
+            touchStart = gr.location(in: self)
+            lastTouchLocation = touchStart
+        case .changed:
+            let translation = gr.translation(in: self)
+            gr.setTranslation(.zero, in: self)
+            let dx = translation.x
+            let dy = translation.y
+            let distance = hypot(dx, dy)
+            panMovedDistance += distance
+            touchMovedDistance = max(touchMovedDistance, panMovedDistance)
+
+            if shouldScroll(with: activeTouchCount) {
+                let scrollDx = -dx * Gesture.scrollMultiplier
+                let scrollDy = -dy * Gesture.scrollMultiplier
+                if abs(scrollDx) > 0.01 || abs(scrollDy) > 0.01 {
+                    if isClickHeld { didScrollWhileClickHeld = true }
+                    onScrolled?(scrollDx, scrollDy)
+                }
+            } else if panMovedDistance >= Gesture.tapSlop {
+                onMoved?(dx * Gesture.moveMultiplier, dy * Gesture.moveMultiplier)
+            }
+        case .ended, .cancelled:
+            let wasTap = !isClickHeld
+                && !didScrollWhileClickHeld
+                && panMovedDistance < Gesture.tapSlop
+                && touchStart != nil
+            touchStart = nil
+            lastTouchLocation = nil
+            panMovedDistance = 0
+            if wasTap {
+                onTapped?()
+            }
+        default:
+            break
         }
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // Prefer any touch (old app did). Still track indirect count for multi-touch scroll.
+        let indirect = touches.filter { $0.type == .indirect }
+        let relevant = indirect.isEmpty ? touches : indirect
+        guard let touch = relevant.first else { return }
+        activeTouchCount = activeIndirectTouchCount(in: event) ?? max(relevant.count, 1)
+        let loc = touch.location(in: self)
+        touchStart = loc
+        lastTouchLocation = loc
+        touchMovedDistance = 0
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         let indirect = touches.filter { $0.type == .indirect }
-        guard !indirect.isEmpty else { return }
-        activeTouchCount = activeIndirectTouchCount(in: event) ?? max(activeTouchCount, indirect.count)
+        let relevant = indirect.isEmpty ? touches : indirect
+        guard !relevant.isEmpty else { return }
+        activeTouchCount = activeIndirectTouchCount(in: event) ?? max(activeTouchCount, relevant.count)
 
         if shouldScroll(with: activeTouchCount) {
-            emitScroll(from: indirect)
+            emitScroll(from: relevant)
             return
         }
 
-        guard let touch = indirect.first else { return }
+        guard let touch = relevant.first else { return }
         let loc = touch.location(in: self)
         if let last = lastTouchLocation {
             let dx = loc.x - last.x

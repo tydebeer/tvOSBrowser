@@ -36,7 +36,7 @@ enum DSMetrics {
     static let tabCloseSize: CGFloat = 28 * tvScale
     static let maxTabs: Int = 8
     /// Max gap between Menu presses to open the browser menu.
-    static let menuDoublePressInterval: TimeInterval = 0.4
+    static let menuDoublePressInterval: TimeInterval = 0.65
 
     static let navBarHeight: CGFloat = 72
     static let addressPillHeight: CGFloat = 44
@@ -59,6 +59,17 @@ enum DSMetrics {
     static let fieldHeight: CGFloat = 52
     static let focusBorderWidth: CGFloat = 2
     static let cursorSize: CGFloat = 48
+    /// Slightly larger white silhouette behind the cursor for contrast on dark pages.
+    static let cursorHaloScale: CGFloat = 1.12
+    static let cursorHaloOpacity: Float = 0.95
+    static let cursorHaloRadius: CGFloat = 6
+    static let cursorDropShadowOpacity: Float = 0.55
+    static let cursorDropShadowRadius: CGFloat = 2
+    static let cursorDropShadowYOffset: CGFloat = 1
+    /// Hide the pointer after this idle period while site video is fullscreen.
+    static let cursorFullscreenIdleHideDelay: TimeInterval = 3
+    /// Ring left/right seek step while site video is fullscreen.
+    static let videoFullscreenSeekSeconds: Double = 10
     static let chromeIconPointSize: CGFloat = 22
     static let siteIconPointSize: CGFloat = 18
     static let tabIconPointSize: CGFloat = 14
