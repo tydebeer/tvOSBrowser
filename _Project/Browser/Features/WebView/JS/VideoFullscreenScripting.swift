@@ -31,6 +31,96 @@ extension JavaScriptExecutor {
         return Self.boolValue(result)
     }
 
+    /// Subtitle/caption tracks on the active fullscreen video.
+    func fullscreenSubtitleTracks() async -> (tracks: [[String: Any]], selectedIndex: Int) {
+        let js = """
+        (function() {
+            \(Self.jsFullscreenVideoResolver)
+            var video = window.__tvbResolveFullscreenVideo();
+            if (!video || !video.textTracks) return { tracks: [], selectedIndex: -1 };
+            var tracks = [];
+            var selectedIndex = -1;
+            for (var i = 0; i < video.textTracks.length; i++) {
+                var t = video.textTracks[i];
+                var kind = ((t.kind || '') + '').toLowerCase();
+                if (kind !== 'subtitles' && kind !== 'captions') continue;
+                if (t.mode === 'showing') selectedIndex = i;
+                var label = (t.label || '').trim();
+                if (!label) label = (t.language || '').trim();
+                if (!label) label = kind === 'captions' ? 'Captions' : 'Subtitles';
+                if (t.language && label.toLowerCase().indexOf(String(t.language).toLowerCase()) === -1) {
+                    label = label + ' (' + t.language + ')';
+                }
+                tracks.push({
+                    index: i,
+                    label: label,
+                    language: t.language || '',
+                    kind: kind,
+                    showing: t.mode === 'showing'
+                });
+            }
+            return { tracks: tracks, selectedIndex: selectedIndex };
+        })()
+        """
+        let result = try? await evaluateJavaScript(js)
+        guard let dict = Self.dictionaryValue(result) else {
+            return ([], -1)
+        }
+        let selected = (dict["selectedIndex"] as? NSNumber)?.intValue
+            ?? (dict["selectedIndex"] as? Int)
+            ?? -1
+        let tracks: [[String: Any]]
+        if let arr = dict["tracks"] as? [[String: Any]] {
+            tracks = arr
+        } else if let arr = dict["tracks"] as? [Any] {
+            tracks = arr.compactMap { item -> [String: Any]? in
+                if let d = item as? [String: Any] { return d }
+                if let d = item as? NSDictionary {
+                    var mapped: [String: Any] = [:]
+                    for (k, v) in d { if let ks = k as? String { mapped[ks] = v } }
+                    return mapped
+                }
+                return nil
+            }
+        } else {
+            tracks = []
+        }
+        return (tracks, selected)
+    }
+
+    /// Enable one subtitle/caption track by `textTracks` index, or pass `-1` to turn all off.
+    @discardableResult
+    func setFullscreenSubtitleTrack(index: Int) async -> Bool {
+        let js = """
+        (function() {
+            \(Self.jsFullscreenVideoResolver)
+            var video = window.__tvbResolveFullscreenVideo();
+            if (!video || !video.textTracks) return false;
+            var want = \(index);
+            for (var i = 0; i < video.textTracks.length; i++) {
+                var t = video.textTracks[i];
+                var kind = ((t.kind || '') + '').toLowerCase();
+                if (kind !== 'subtitles' && kind !== 'captions') continue;
+                try {
+                    t.mode = (want >= 0 && i === want) ? 'showing' : 'disabled';
+                } catch (e) {}
+            }
+            return true;
+        })()
+        """
+        let result = try? await evaluateJavaScriptAsUserGesture(js)
+        return Self.boolValue(result)
+    }
+
+    private static let jsFullscreenVideoResolver = """
+            window.__tvbResolveFullscreenVideo = window.__tvbResolveFullscreenVideo || function() {
+                return window.__tvbFullscreenVideo
+                    || document.querySelector('video[data-tvb-fs=\"1\"]')
+                    || Array.prototype.find.call(document.querySelectorAll('video'), function(v) { return !v.paused; })
+                    || document.querySelector('video');
+            };
+    """
+
     /// Toggle play/pause on the most relevant video on the page.
     func toggleMediaPlayback() async {
         let js = """

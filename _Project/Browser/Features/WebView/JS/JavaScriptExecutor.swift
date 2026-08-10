@@ -76,4 +76,16 @@ actor JavaScriptExecutor {
         if let n = result as? NSNumber { return n.boolValue }
         return false
     }
+
+    static func dictionaryValue(_ result: Any?) -> [String: Any]? {
+        if let dict = result as? [String: Any] { return dict }
+        if let dict = result as? NSDictionary {
+            var mapped: [String: Any] = [:]
+            for (key, value) in dict {
+                if let k = key as? String { mapped[k] = value }
+            }
+            return mapped
+        }
+        return nil
+    }
 }

@@ -307,6 +307,16 @@ final class BrowserViewModel {
         }
     }
 
+    func fullscreenSubtitleTracks() async -> (tracks: [[String: Any]], selectedIndex: Int) {
+        await webContainer.jsExecutor.fullscreenSubtitleTracks()
+    }
+
+    func setFullscreenSubtitleTrack(index: Int) {
+        Task {
+            _ = await webContainer.jsExecutor.setFullscreenSubtitleTrack(index: index)
+        }
+    }
+
     func toggleMediaPlayback() {
         guard !isShowingStartPage else { return }
         Task {

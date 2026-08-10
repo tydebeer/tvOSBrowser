@@ -282,6 +282,12 @@ final class BrowserViewController: GCEventViewController {
             return
         }
 
+        if isSiteVideoFullscreen, press.type == .upArrow {
+            noteCursorActivity()
+            showSubtitlePicker()
+            return
+        }
+
         noteCursorActivity()
         pointer.beginDirectionalPress(press.type)
     }
@@ -580,6 +586,68 @@ final class BrowserViewController: GCEventViewController {
             deadline: .now() + DSMetrics.cursorFullscreenIdleHideDelay,
             execute: work
         )
+    }
+
+    private func showSubtitlePicker() {
+        guard isSiteVideoFullscreen, presentedViewController == nil else { return }
+        Task { @MainActor [weak self] in
+            guard let self, self.isSiteVideoFullscreen, self.presentedViewController == nil else { return }
+            let result = await self.viewModel.fullscreenSubtitleTracks()
+            self.presentSubtitlePicker(tracks: result.tracks, selectedIndex: result.selectedIndex)
+        }
+    }
+
+    private func presentSubtitlePicker(tracks: [[String: Any]], selectedIndex: Int) {
+        guard presentedViewController == nil else { return }
+
+        var rows: [SafariMenuRow] = []
+        if tracks.isEmpty {
+            rows.append(SafariMenuRow(
+                title: "No Subtitles Found",
+                subtitle: "This video has no subtitle or caption tracks",
+                symbol: "captions.bubble",
+                style: .disabled
+            ))
+        } else {
+            let offSelected = selectedIndex < 0
+            rows.append(SafariMenuRow(
+                title: "Off",
+                symbol: "captions.bubble",
+                style: offSelected ? .selected : .normal,
+                action: { [weak self] in
+                    self?.viewModel.setFullscreenSubtitleTrack(index: -1)
+                }
+            ))
+            for track in tracks {
+                let index = (track["index"] as? NSNumber)?.intValue
+                    ?? (track["index"] as? Int)
+                    ?? -1
+                guard index >= 0 else { continue }
+                let label = (track["label"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let title = (label?.isEmpty == false) ? label! : "Track \(index + 1)"
+                let kind = (track["kind"] as? String) ?? "subtitles"
+                let isOn = index == selectedIndex
+                rows.append(SafariMenuRow(
+                    title: title,
+                    subtitle: kind.capitalized,
+                    symbol: isOn ? "checkmark.circle.fill" : "circle",
+                    style: isOn ? .selected : .normal,
+                    action: { [weak self] in
+                        self?.viewModel.setFullscreenSubtitleTrack(index: index)
+                    }
+                ))
+            }
+        }
+
+        let menu = SafariMenuViewController(
+            title: "Subtitles",
+            sections: [SafariMenuSection(title: nil, rows: rows)]
+        )
+        menu.onDismiss = { [weak self] in
+            self?.reclaimPointerControl()
+            self?.noteCursorActivity()
+        }
+        present(menu, animated: false)
     }
 
     private func handleMenuPress() {
