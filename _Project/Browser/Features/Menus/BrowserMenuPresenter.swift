@@ -15,6 +15,9 @@ final class BrowserMenuPresenter {
     var onZoomIn: (() -> Void)?
     var onZoomOut: (() -> Void)?
     var onResetZoom: (() -> Void)?
+    var onMouseSpeedIn: (() -> Void)?
+    var onMouseSpeedOut: (() -> Void)?
+    var onResetMouseSpeed: (() -> Void)?
     var onTogglePreferDarkSites: (() -> Void)?
     var onClearCache: (() -> Void)?
     var onClearCookies: (() -> Void)?
@@ -24,6 +27,10 @@ final class BrowserMenuPresenter {
 
     func updateZoomPercent(_ percent: Int) {
         presentedMenu?.updateZoomPercent(percent)
+    }
+
+    func updateMouseSpeedPercent(_ percent: Int) {
+        presentedMenu?.updateMouseSpeedPercent(percent)
     }
 
     func setPreferDarkSitesSelected(_ isOn: Bool) {
@@ -84,6 +91,7 @@ final class BrowserMenuPresenter {
         let zoomPercent = Int((settings.pageZoom * 100).rounded())
         sections.append(SafariMenuSection(title: "Zoom", rows: [
             .zoomStepper(
+                title: "Zoom",
                 percent: zoomPercent,
                 onZoomOut: { [weak self] in self?.onZoomOut?() },
                 onZoomIn: { [weak self] in self?.onZoomIn?() }
@@ -93,6 +101,23 @@ final class BrowserMenuPresenter {
                 symbol: "arrow.counterclockwise",
                 dismissesOnSelect: false,
                 action: { [weak self] in self?.onResetZoom?() }
+            ),
+        ]))
+
+        // MARK: Mouse Speed
+        let mousePercent = Int((settings.mouseSpeed * 100).rounded())
+        sections.append(SafariMenuSection(title: "Mouse Speed", rows: [
+            .zoomStepper(
+                title: "Mouse Speed",
+                percent: mousePercent,
+                onZoomOut: { [weak self] in self?.onMouseSpeedOut?() },
+                onZoomIn: { [weak self] in self?.onMouseSpeedIn?() }
+            ),
+            SafariMenuRow(
+                title: "Reset Speed",
+                symbol: "arrow.counterclockwise",
+                dismissesOnSelect: false,
+                action: { [weak self] in self?.onResetMouseSpeed?() }
             ),
         ]))
 

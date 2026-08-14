@@ -322,6 +322,42 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
     }
 }
 
+- (void)simulateMouseDownAtPoint:(CGPoint)point {
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self simulateMouseDownAtPoint:point];
+        });
+        return;
+    }
+    if (!_wkWebView) return;
+    NSArray<NSString *> *downSels = @[ @"_simulateMouseDownAt:", @"simulateMouseDownAt:" ];
+    for (NSString *name in downSels) {
+        SEL sel = NSSelectorFromString(name);
+        if ([_wkWebView respondsToSelector:sel]) {
+            ((void (*)(id, SEL, CGPoint))objc_msgSend)(_wkWebView, sel, point);
+            return;
+        }
+    }
+}
+
+- (void)simulateMouseUpAtPoint:(CGPoint)point {
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self simulateMouseUpAtPoint:point];
+        });
+        return;
+    }
+    if (!_wkWebView) return;
+    NSArray<NSString *> *upSels = @[ @"_simulateMouseUpAt:", @"simulateMouseUpAt:" ];
+    for (NSString *name in upSels) {
+        SEL sel = NSSelectorFromString(name);
+        if ([_wkWebView respondsToSelector:sel]) {
+            ((void (*)(id, SEL, CGPoint))objc_msgSend)(_wkWebView, sel, point);
+            return;
+        }
+    }
+}
+
 // MARK: - Cache & Cookies (all via NSClassFromString — no WebKit headers needed)
 
 - (void)clearCache {

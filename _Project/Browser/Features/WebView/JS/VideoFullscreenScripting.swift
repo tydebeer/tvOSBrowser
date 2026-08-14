@@ -6,15 +6,13 @@ extension JavaScriptExecutor {
         _ = try? await evaluateJavaScript("(function(){ if (window.__tvbExitVideoFullscreen) return window.__tvbExitVideoFullscreen(); return false; })()")
     }
 
-    /// Seek the fullscreen (or best-matching) video by `seconds` (negative = rewind).
+    /// Seek the fullscreen video by `seconds` (negative = rewind). No-op if not in FS.
     @discardableResult
     func seekFullscreenVideo(by seconds: Double) async -> Bool {
         let js = """
         (function() {
-            var video = window.__tvbFullscreenVideo
-                || document.querySelector('video[data-tvb-fs=\"1\"]')
-                || Array.prototype.find.call(document.querySelectorAll('video'), function(v) { return !v.paused; })
-                || document.querySelector('video');
+            \(Self.jsFullscreenVideoResolver)
+            var video = window.__tvbResolveFullscreenVideo();
             if (!video) return false;
             var delta = \(seconds);
             var next = (video.currentTime || 0) + delta;
@@ -116,8 +114,7 @@ extension JavaScriptExecutor {
             window.__tvbResolveFullscreenVideo = window.__tvbResolveFullscreenVideo || function() {
                 return window.__tvbFullscreenVideo
                     || document.querySelector('video[data-tvb-fs=\"1\"]')
-                    || Array.prototype.find.call(document.querySelectorAll('video'), function(v) { return !v.paused; })
-                    || document.querySelector('video');
+                    || null;
             };
     """
 
@@ -140,38 +137,67 @@ extension JavaScriptExecutor {
         _ = try? await evaluateJavaScriptAsUserGesture(js)
     }
 
+    /// True when our in-page video fullscreen flag is set on the document.
+    func isVideoFullscreenActive() async -> Bool {
+        let result = try? await evaluateJavaScript(
+            "(function(){ return document.documentElement.getAttribute('data-tvb-video-fs') === '1' && !!(window.__tvbFullscreenVideo || document.querySelector('video[data-tvb-fs=\"1\"]')); })()"
+        )
+        return Self.boolValue(result)
+    }
+
     /// Intercept native fullscreen APIs and expand video inside the webview instead.
     static let jsFullscreenHelpers = """
+            window.__tvbFindVideoNear = function(fromEl) {
+                if (!fromEl) return null;
+                if ((fromEl.tagName || '').toUpperCase() === 'VIDEO') return fromEl;
+                if (fromEl.closest) {
+                    var nested = fromEl.closest('video');
+                    if (nested) return nested;
+                    var root = fromEl.closest(
+                        '.video-js, .jwplayer, .plyr, .html5-video-player, .fp-player,' +
+                        ' .ytp-chrome-bottom, .ytp-chrome-controls, [class*=\"video-player\"],' +
+                        ' [class*=\"html5-video\"], [data-player]'
+                    );
+                    if (root) {
+                        var v = root.tagName && root.tagName.toUpperCase() === 'VIDEO'
+                            ? root
+                            : root.querySelector('video');
+                        if (v) return v;
+                    }
+                }
+                return null;
+            };
             window.__tvbLooksLikeFullscreenControl = function(el) {
                 if (!el || !el.closest) return false;
-                var btn = el.closest('button, a, [role="button"], .pointer, .vjs-fullscreen-control, .jw-icon-fullscreen, .plyr__control');
+                // Must be near a real video — never treat generic Expand/Maximize UI as FS.
+                if (!window.__tvbFindVideoNear(el)) return false;
+                var btn = el.closest(
+                    'button, a, [role=\"button\"], .pointer,' +
+                    ' .vjs-fullscreen-control, .jw-icon-fullscreen, .plyr__control, .ytp-fullscreen-button'
+                );
                 if (!btn) btn = el;
+                if (btn.classList && (
+                    btn.classList.contains('vjs-fullscreen-control') ||
+                    btn.classList.contains('jw-icon-fullscreen') ||
+                    btn.classList.contains('fp-fullscreen') ||
+                    btn.classList.contains('ytp-fullscreen-button') ||
+                    btn.classList.contains('plyr__control--fullscreen')
+                )) return true;
                 var label = (
                     (btn.getAttribute('aria-label') || '') + ' ' +
                     (btn.getAttribute('title') || '') + ' ' +
                     (btn.className || '') + ' ' +
-                    (btn.id || '') + ' ' +
-                    (btn.textContent || '')
+                    (btn.id || '')
                 ).toLowerCase();
-                if (/full\\s*-?screen|fullscreen|expand|enlarge|maximize/.test(label)) return true;
-                if (btn.classList && (
-                    btn.classList.contains('vjs-fullscreen-control') ||
-                    btn.classList.contains('jw-icon-fullscreen') ||
-                    btn.classList.contains('fp-fullscreen')
-                )) return true;
-                return false;
+                // Intentionally omit expand/enlarge/maximize — too many false positives.
+                return /full\\s*-?screen|fullscreen/.test(label);
             };
             window.__tvbEnterVideoFullscreen = function(fromEl) {
-                var video = null;
-                if (fromEl) {
-                    if ((fromEl.tagName || '').toUpperCase() === 'VIDEO') video = fromEl;
-                    else video = fromEl.closest && fromEl.closest('video');
-                    if (!video && fromEl.closest) {
-                        var root = fromEl.closest('.video-js, .jwplayer, .plyr, .player, .html5-video-player, .fp-player, [class*=\"player\"]');
-                        if (root) video = root.querySelector('video');
-                    }
+                var video = window.__tvbFindVideoNear(fromEl);
+                // Only fall back to a page video for explicit VIDEO / requestFullscreen callers.
+                if (!video && fromEl && (fromEl.tagName || '').toUpperCase() === 'VIDEO') {
+                    video = fromEl;
                 }
-                if (!video) video = document.querySelector('video');
                 if (!video) return false;
                 if (window.__tvbFullscreenVideo && window.__tvbFullscreenVideo !== video) {
                     window.__tvbExitVideoFullscreen();
@@ -196,7 +222,11 @@ extension JavaScriptExecutor {
             if (!window.__tvbFullscreenPatched) {
                 window.__tvbFullscreenPatched = true;
                 var enter = function(el) {
-                    window.__tvbEnterVideoFullscreen(el || document.querySelector('video'));
+                    // requestFullscreen on non-video elements: only enter if a video is nearby.
+                    var ok = window.__tvbEnterVideoFullscreen(el);
+                    if (!ok && el && (el.tagName || '').toUpperCase() === 'VIDEO') {
+                        ok = window.__tvbEnterVideoFullscreen(el);
+                    }
                     return Promise.resolve();
                 };
                 try {

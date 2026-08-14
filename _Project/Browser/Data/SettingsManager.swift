@@ -11,6 +11,7 @@ final class SettingsManager {
     private enum Keys {
         static let homepage          = "homepage"
         static let pageZoom          = "PageZoom"
+        static let mouseSpeed        = "MouseSpeed"
         static let suppressHints     = "DontShowHintsOnLaunch"
         static let savedURLtoReopen  = "savedURLtoReopen"
         static let userAgent         = "UserAgent"
@@ -52,6 +53,21 @@ final class SettingsManager {
         set {
             let clamped = min(DSMetrics.pageZoomMax, max(DSMetrics.pageZoomMin, newValue))
             defaults.set(Double(clamped), forKey: Keys.pageZoom)
+        }
+    }
+
+    /// Pointer movement speed multiplier (1.0 = 100%).
+    var mouseSpeed: CGFloat {
+        get {
+            guard defaults.object(forKey: Keys.mouseSpeed) != nil else {
+                return DSMetrics.mouseSpeedDefault
+            }
+            let value = CGFloat(defaults.double(forKey: Keys.mouseSpeed))
+            return min(DSMetrics.mouseSpeedMax, max(DSMetrics.mouseSpeedMin, value))
+        }
+        set {
+            let clamped = min(DSMetrics.mouseSpeedMax, max(DSMetrics.mouseSpeedMin, newValue))
+            defaults.set(Double(clamped), forKey: Keys.mouseSpeed)
         }
     }
 

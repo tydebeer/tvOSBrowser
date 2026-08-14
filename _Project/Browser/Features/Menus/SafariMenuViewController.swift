@@ -45,13 +45,14 @@ struct SafariMenuRow {
     }
 
     static func zoomStepper(
+        title: String = "Zoom",
         percent: Int,
         onZoomOut: @escaping () -> Void,
         onZoomIn: @escaping () -> Void
     ) -> SafariMenuRow {
         SafariMenuRow(
             kind: .zoomStepper,
-            title: "Zoom",
+            title: title,
             subtitle: nil,
             symbol: nil,
             style: .normal,
@@ -102,6 +103,7 @@ final class SafariMenuViewController: DimmedMaterialSheetController {
     private var sections: [SafariMenuSection] = []
     private var tableHeightConstraint: NSLayoutConstraint?
     private weak var zoomStepperCell: SafariMenuZoomStepperCell?
+    private weak var mouseSpeedStepperCell: SafariMenuZoomStepperCell?
 
     init(title: String, sections: [SafariMenuSection]) {
         self.sections = sections
@@ -123,18 +125,31 @@ final class SafariMenuViewController: DimmedMaterialSheetController {
     }
 
     func updateZoomPercent(_ percent: Int) {
+        updateStepperPercent(percent, title: "Zoom")
+    }
+
+    func updateMouseSpeedPercent(_ percent: Int) {
+        updateStepperPercent(percent, title: "Mouse Speed")
+    }
+
+    private func updateStepperPercent(_ percent: Int, title: String) {
         for sectionIndex in sections.indices {
             for rowIndex in sections[sectionIndex].rows.indices {
-                guard sections[sectionIndex].rows[rowIndex].kind == .zoomStepper else { continue }
                 let old = sections[sectionIndex].rows[rowIndex]
+                guard old.kind == .zoomStepper, old.title == title else { continue }
                 sections[sectionIndex].rows[rowIndex] = SafariMenuRow.zoomStepper(
+                    title: title,
                     percent: percent,
                     onZoomOut: old.onZoomOut ?? {},
                     onZoomIn: old.onZoomIn ?? {}
                 )
             }
         }
-        zoomStepperCell?.setPercent(percent)
+        if title == "Zoom" {
+            zoomStepperCell?.setPercent(percent)
+        } else if title == "Mouse Speed" {
+            mouseSpeedStepperCell?.setPercent(percent)
+        }
     }
 
     func setPreferDarkSitesSelected(_ isOn: Bool) {
@@ -279,20 +294,35 @@ extension SafariMenuViewController: UITableViewDataSource, UITableViewDelegate {
                 withIdentifier: SafariMenuZoomStepperCell.reuseID,
                 for: indexPath
             ) as! SafariMenuZoomStepperCell
+            let stepperTitle = row.title
             cell.configure(
                 percent: row.zoomPercent,
                 onZoomOut: { [weak self] in
                     row.onZoomOut?()
-                    let percent = Int((SettingsManager.shared.pageZoom * 100).rounded())
-                    self?.updateZoomPercent(percent)
+                    if stepperTitle == "Mouse Speed" {
+                        let percent = Int((SettingsManager.shared.mouseSpeed * 100).rounded())
+                        self?.updateMouseSpeedPercent(percent)
+                    } else {
+                        let percent = Int((SettingsManager.shared.pageZoom * 100).rounded())
+                        self?.updateZoomPercent(percent)
+                    }
                 },
                 onZoomIn: { [weak self] in
                     row.onZoomIn?()
-                    let percent = Int((SettingsManager.shared.pageZoom * 100).rounded())
-                    self?.updateZoomPercent(percent)
+                    if stepperTitle == "Mouse Speed" {
+                        let percent = Int((SettingsManager.shared.mouseSpeed * 100).rounded())
+                        self?.updateMouseSpeedPercent(percent)
+                    } else {
+                        let percent = Int((SettingsManager.shared.pageZoom * 100).rounded())
+                        self?.updateZoomPercent(percent)
+                    }
                 }
             )
-            zoomStepperCell = cell
+            if stepperTitle == "Mouse Speed" {
+                mouseSpeedStepperCell = cell
+            } else {
+                zoomStepperCell = cell
+            }
             return cell
         case .action:
             let cell = tableView.dequeueReusableCell(

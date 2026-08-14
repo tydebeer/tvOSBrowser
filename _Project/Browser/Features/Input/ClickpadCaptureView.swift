@@ -2,9 +2,9 @@ import UIKit
 
 /// Full-screen transparent layer that receives Siri Remote clickpad (indirect) touches.
 /// - Drag: move pointer
-/// - Tap: activate under pointer
-/// - Click-and-drag (select held while dragging): scroll the page
-/// - Multi-touch drag (when the remote delivers multiple touches): scroll the page
+/// - Tap: activate under pointer (when Select is not driving press-drag-release)
+/// - Multi-touch drag: scroll the page
+/// - Select held + drag: page pointer drag (handled by BrowserViewController), not scroll
 ///
 /// tvOS delivers remote-pad touches at the **focused** view’s center, so this view
 /// must be focusable and preferred for focus or it never sees the pad.
@@ -14,25 +14,25 @@ final class ClickpadCaptureView: UIView {
     var onTapped: (() -> Void)?
     var onScrolled: ((CGFloat, CGFloat) -> Void)?
 
-    /// Set from directional select press so click-and-drag can scroll.
+    /// Set from Select press so callers know a button is held.
     var isClickHeld = false {
         didSet {
             if isClickHeld {
-                didScrollWhileClickHeld = false
+                didDragWhileClickHeld = false
+                dragDistanceWhileClickHeld = 0
+                // Select owns activation for this gesture — ignore clickpad tap.
+                suppressTapBecauseSelectHeld = true
             }
         }
     }
 
-    /// True if the current select hold produced scroll movement (suppress click on release).
-    private(set) var didScrollWhileClickHeld = false
+    /// True if the pointer moved past tap slop while Select was held.
+    private(set) var didDragWhileClickHeld = false
+    private(set) var dragDistanceWhileClickHeld: CGFloat = 0
 
     private enum Gesture {
-        /// Movement below this distance counts as a tap rather than a drag.
-        static let tapSlop: CGFloat = 12
         /// Scales scroll pan deltas into page scroll distance.
         static let scrollMultiplier: CGFloat = 2.2
-        /// Scales one-finger pan deltas into pointer movement.
-        static let moveMultiplier: CGFloat = 1.35
     }
 
     private var touchStart: CGPoint?
@@ -40,6 +40,8 @@ final class ClickpadCaptureView: UIView {
     private var lastTouchLocation: CGPoint?
     private var activeTouchCount = 0
     private var panMovedDistance: CGFloat = 0
+    /// Prevents Select press-release from also firing onTapped when touches end after Select up.
+    private var suppressTapBecauseSelectHeld = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -62,11 +64,22 @@ final class ClickpadCaptureView: UIView {
 
     func endClickHold() {
         isClickHeld = false
+        // Select-only click with no pad touches: don't leave suppress latched.
+        if activeTouchCount == 0, touchStart == nil {
+            suppressTapBecauseSelectHeld = false
+        }
+    }
+
+    private var moveSpeed: CGFloat {
+        SettingsManager.shared.mouseSpeed
     }
 
     @objc private func handlePan(_ gr: UIPanGestureRecognizer) {
         switch gr.state {
         case .began:
+            if !isClickHeld {
+                suppressTapBecauseSelectHeld = false
+            }
             panMovedDistance = 0
             touchMovedDistance = 0
             touchStart = gr.location(in: self)
@@ -79,25 +92,27 @@ final class ClickpadCaptureView: UIView {
             let distance = hypot(dx, dy)
             panMovedDistance += distance
             touchMovedDistance = max(touchMovedDistance, panMovedDistance)
+            noteDragIfNeeded(distance: distance)
 
             if shouldScroll(with: activeTouchCount) {
                 let scrollDx = -dx * Gesture.scrollMultiplier
                 let scrollDy = -dy * Gesture.scrollMultiplier
                 if abs(scrollDx) > 0.01 || abs(scrollDy) > 0.01 {
-                    if isClickHeld { didScrollWhileClickHeld = true }
                     onScrolled?(scrollDx, scrollDy)
                 }
-            } else if panMovedDistance >= Gesture.tapSlop {
-                onMoved?(dx * Gesture.moveMultiplier, dy * Gesture.moveMultiplier)
+            } else if panMovedDistance >= DSMetrics.pointerTapSlop || isClickHeld {
+                onMoved?(dx * moveSpeed, dy * moveSpeed)
             }
         case .ended, .cancelled:
             let wasTap = !isClickHeld
-                && !didScrollWhileClickHeld
-                && panMovedDistance < Gesture.tapSlop
+                && !suppressTapBecauseSelectHeld
+                && !didDragWhileClickHeld
+                && panMovedDistance < DSMetrics.pointerTapSlop
                 && touchStart != nil
             touchStart = nil
             lastTouchLocation = nil
             panMovedDistance = 0
+            suppressTapBecauseSelectHeld = false
             if wasTap {
                 onTapped?()
             }
@@ -107,10 +122,12 @@ final class ClickpadCaptureView: UIView {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        // Prefer any touch (old app did). Still track indirect count for multi-touch scroll.
         let indirect = touches.filter { $0.type == .indirect }
         let relevant = indirect.isEmpty ? touches : indirect
         guard let touch = relevant.first else { return }
+        if !isClickHeld {
+            suppressTapBecauseSelectHeld = false
+        }
         activeTouchCount = activeIndirectTouchCount(in: event) ?? max(relevant.count, 1)
         let loc = touch.location(in: self)
         touchStart = loc
@@ -134,9 +151,11 @@ final class ClickpadCaptureView: UIView {
         if let last = lastTouchLocation {
             let dx = loc.x - last.x
             let dy = loc.y - last.y
-            touchMovedDistance += hypot(dx, dy)
-            if touchMovedDistance >= Gesture.tapSlop {
-                onMoved?(dx * Gesture.moveMultiplier, dy * Gesture.moveMultiplier)
+            let distance = hypot(dx, dy)
+            touchMovedDistance += distance
+            noteDragIfNeeded(distance: distance)
+            if touchMovedDistance >= DSMetrics.pointerTapSlop || isClickHeld {
+                onMoved?(dx * moveSpeed, dy * moveSpeed)
             }
         }
         lastTouchLocation = loc
@@ -144,9 +163,10 @@ final class ClickpadCaptureView: UIView {
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         let wasTap = !isClickHeld
-            && !didScrollWhileClickHeld
+            && !suppressTapBecauseSelectHeld
+            && !didDragWhileClickHeld
             && activeTouchCount <= 1
-            && touchMovedDistance < Gesture.tapSlop
+            && touchMovedDistance < DSMetrics.pointerTapSlop
             && touchStart != nil
 
         resetTouchStateIfNeeded(event)
@@ -161,7 +181,15 @@ final class ClickpadCaptureView: UIView {
     }
 
     private func shouldScroll(with touchCount: Int) -> Bool {
-        touchCount >= 2 || isClickHeld
+        touchCount >= 2
+    }
+
+    private func noteDragIfNeeded(distance: CGFloat) {
+        guard isClickHeld else { return }
+        dragDistanceWhileClickHeld += distance
+        if dragDistanceWhileClickHeld >= DSMetrics.pointerTapSlop {
+            didDragWhileClickHeld = true
+        }
     }
 
     private func emitScroll(from touches: Set<UITouch>) {
@@ -183,10 +211,7 @@ final class ClickpadCaptureView: UIView {
         let scrollDy = -dy * Gesture.scrollMultiplier
         guard abs(scrollDx) > 0.01 || abs(scrollDy) > 0.01 else { return }
 
-        touchMovedDistance = Gesture.tapSlop
-        if isClickHeld {
-            didScrollWhileClickHeld = true
-        }
+        touchMovedDistance = DSMetrics.pointerTapSlop
         onScrolled?(scrollDx, scrollDy)
     }
 
@@ -203,6 +228,7 @@ final class ClickpadCaptureView: UIView {
             lastTouchLocation = nil
             touchMovedDistance = 0
             activeTouchCount = 0
+            suppressTapBecauseSelectHeld = false
         } else {
             activeTouchCount = remaining
         }

@@ -140,6 +140,18 @@ final class BrowserViewController: GCEventViewController {
             self?.syncZoomMenuPercent()
             self?.refreshCachedDocumentSizeAndClampScroll()
         }
+        browserMenu.onMouseSpeedIn = { [weak self] in
+            self?.viewModel.mouseSpeedIn()
+            self?.syncMouseSpeedMenuPercent()
+        }
+        browserMenu.onMouseSpeedOut = { [weak self] in
+            self?.viewModel.mouseSpeedOut()
+            self?.syncMouseSpeedMenuPercent()
+        }
+        browserMenu.onResetMouseSpeed = { [weak self] in
+            self?.viewModel.resetMouseSpeed()
+            self?.syncMouseSpeedMenuPercent()
+        }
         browserMenu.onTogglePreferDarkSites = { [weak self] in
             self?.togglePreferDarkSites()
         }
@@ -233,14 +245,8 @@ final class BrowserViewController: GCEventViewController {
     }
 
     private func setupGestures() {
-        let selectTap = UITapGestureRecognizer(target: self, action: #selector(handleSelectTap))
-        selectTap.allowedPressTypes = [NSNumber(value: UIPress.PressType.select.rawValue)]
-        view.addGestureRecognizer(selectTap)
-    }
-
-    @objc private func handleSelectTap(_ gr: UITapGestureRecognizer) {
-        guard gr.state == .ended else { return }
-        fireSelectClick()
+        // Select is handled via pressesBegan/Ended (press-drag-release). No tap recognizer —
+        // it would double-fire a second click after pointerUp.
     }
 
     private func fireSelectClick() {
@@ -252,6 +258,43 @@ final class BrowserViewController: GCEventViewController {
         handlePointerSelectPress()
     }
 
+    private func beginPointerPress() {
+        reclaimPointerControl()
+        noteCursorActivity()
+        clickpadCaptureView.beginClickHold()
+        if viewModel.isShowingStartPage { return }
+        viewModel.handlePointerDown(at: pointer.position)
+    }
+
+    private func endPointerPress(cancelled: Bool = false) {
+        let dragged = clickpadCaptureView.didDragWhileClickHeld
+        clickpadCaptureView.endClickHold()
+        if cancelled {
+            if !viewModel.isShowingStartPage {
+                viewModel.handlePointerUp(at: pointer.position, fireClick: false)
+            }
+            return
+        }
+        if viewModel.isShowingStartPage {
+            if !dragged {
+                let now = ProcessInfo.processInfo.systemUptime
+                guard now - lastSelectClickTime > 0.35 else { return }
+                lastSelectClickTime = now
+                handlePointerSelectPress()
+            }
+            return
+        }
+        let now = ProcessInfo.processInfo.systemUptime
+        if !dragged {
+            guard now - lastSelectClickTime > 0.35 else {
+                viewModel.handlePointerUp(at: pointer.position, fireClick: false)
+                return
+            }
+            lastSelectClickTime = now
+        }
+        viewModel.handlePointerUp(at: pointer.position, fireClick: !dragged)
+    }
+
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         // Do not call super for Menu — UIKit would treat it as system back and
         // break our single/double-press handling.
@@ -260,7 +303,7 @@ final class BrowserViewController: GCEventViewController {
         }
 
         if presses.contains(where: { $0.type == .select }) {
-            clickpadCaptureView.beginClickHold()
+            beginPointerPress()
             return
         }
 
@@ -278,7 +321,11 @@ final class BrowserViewController: GCEventViewController {
                 ? -DSMetrics.videoFullscreenSeekSeconds
                 : DSMetrics.videoFullscreenSeekSeconds
             noteCursorActivity()
-            viewModel.seekFullscreenVideo(by: delta)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard await self.ensureVideoFullscreenStillActive() else { return }
+                self.viewModel.seekFullscreenVideo(by: delta)
+            }
             return
         }
 
@@ -307,10 +354,10 @@ final class BrowserViewController: GCEventViewController {
         case .menu:
             handleMenuPress()
         case .select:
-            let scrolled = clickpadCaptureView.didScrollWhileClickHeld
-            clickpadCaptureView.endClickHold()
-            if presentedViewController == nil, !scrolled {
-                fireSelectClick()
+            if presentedViewController == nil {
+                endPointerPress()
+            } else {
+                clickpadCaptureView.endClickHold()
             }
         case .playPause:
             noteCursorActivity()
@@ -322,7 +369,7 @@ final class BrowserViewController: GCEventViewController {
 
     override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         if presses.contains(where: { $0.type == .select }) {
-            clickpadCaptureView.endClickHold()
+            endPointerPress(cancelled: true)
         }
         // Don't forward Menu cancels to super — same reason as pressesBegan.
         if presses.contains(where: { $0.type == .menu }) {
@@ -361,14 +408,21 @@ final class BrowserViewController: GCEventViewController {
             x: min(max(sv.contentOffset.x + dx, 0), maxX),
             y: min(max(sv.contentOffset.y + dy, 0), maxY)
         )
+        let point = pointer.position
         Task {
             await viewModel.webContainer.jsExecutor.noteUserScrolling()
+            await viewModel.webContainer.jsExecutor.dispatchWheel(deltaX: dx, deltaY: dy, at: point)
         }
     }
 
     private func syncZoomMenuPercent() {
         let percent = Int((SettingsManager.shared.pageZoom * 100).rounded())
         browserMenu.updateZoomPercent(percent)
+    }
+
+    private func syncMouseSpeedMenuPercent() {
+        let percent = Int((SettingsManager.shared.mouseSpeed * 100).rounded())
+        browserMenu.updateMouseSpeedPercent(percent)
     }
 
     private func togglePreferDarkSites() {
@@ -555,6 +609,18 @@ final class BrowserViewController: GCEventViewController {
         noteCursorActivity()
     }
 
+    /// Clears chrome FS state if the page no longer has an active FS video.
+    @discardableResult
+    private func ensureVideoFullscreenStillActive() async -> Bool {
+        guard isSiteVideoFullscreen else { return false }
+        let active = await viewModel.isVideoFullscreenActive()
+        if !active {
+            exitSiteVideoFullscreen()
+            return false
+        }
+        return true
+    }
+
     private func exitSiteVideoFullscreen() {
         guard isSiteVideoFullscreen else {
             viewModel.exitVideoFullscreen()
@@ -591,7 +657,8 @@ final class BrowserViewController: GCEventViewController {
     private func showSubtitlePicker() {
         guard isSiteVideoFullscreen, presentedViewController == nil else { return }
         Task { @MainActor [weak self] in
-            guard let self, self.isSiteVideoFullscreen, self.presentedViewController == nil else { return }
+            guard let self, self.presentedViewController == nil else { return }
+            guard await self.ensureVideoFullscreenStillActive() else { return }
             let result = await self.viewModel.fullscreenSubtitleTracks()
             self.presentSubtitlePicker(tracks: result.tracks, selectedIndex: result.selectedIndex)
         }

@@ -65,6 +65,7 @@ extension JavaScriptExecutor {
     func updatePointer(at viewPoint: CGPoint) async -> Bool {
         let pageZoom = await currentPageZoom()
         let suppressDropdowns = shouldSuppressDropdownHover
+        let buttons = pointerButtons
         let webBridge = bridge
         await MainActor.run {
             webBridge?.simulateMouseMove(at: viewPoint)
@@ -76,16 +77,17 @@ extension JavaScriptExecutor {
             if (!window.__tvbResolveTargetAt) { \(Self.jsHitTestHelpers) }
             if (!window.__tvbApplyHoverAt) { \(Self.jsHoverEmulationHelpers) }
 
+            var buttons = \(buttons);
             var el = document.elementFromPoint(x, y);
             if (!el) {
-                window.__tvbApplyHoverAt(null, x, y);
+                window.__tvbApplyHoverAt(null, x, y, buttons);
                 if (!\(suppressDropdowns ? "true" : "false") && !window.__tvbPinnedOverlay) {
                     window.__tvbCloseDropdowns(null);
                 }
                 return false;
             }
 
-            window.__tvbApplyHoverAt(el, x, y);
+            window.__tvbApplyHoverAt(el, x, y, buttons);
 
             if (!\(suppressDropdowns ? "true" : "false")) {
                 var ddRoot = el.closest('.dropdown, .vipmenu, .nav-item.dropdown');
@@ -116,6 +118,243 @@ extension JavaScriptExecutor {
             )
         }
         return isClickable
+    }
+
+    func pointerDown(at viewPoint: CGPoint) async {
+        setPointerButtons(1)
+        let pageZoom = await currentPageZoom()
+        let hitRadius = Double(DSMetrics.pointerHitExpandRadius)
+        let webBridge = bridge
+        await MainActor.run {
+            webBridge?.simulateMouseDown(at: viewPoint)
+        }
+        let js = """
+        (function() {
+            \(Self.jsPointConversion(viewPoint, pageZoom: pageZoom))
+            if (!window.__tvbResolveTargetAt) { \(Self.jsHitTestHelpers) }
+            if (!window.__tvbApplyHoverAt) { \(Self.jsHoverEmulationHelpers) }
+
+            var resolved = window.__tvbResolveTargetAt(x, y, \(hitRadius));
+            var el = resolved.el;
+            var target = resolved.target || el;
+            if (!target) return false;
+            window.__tvbPointerDownTarget = target;
+            window.__tvbPointerDownMoved = false;
+            try { target.focus({ preventScroll: true }); } catch (e) {}
+            window.__tvbApplyHoverAt(el || target, x, y, 1);
+
+            function trust(evt) {
+                try { Object.defineProperty(evt, 'isTrusted', { get: function() { return true; } }); } catch (e) {}
+                return evt;
+            }
+            function fire(type, Ctor, extra) {
+                var init = {
+                    bubbles: true, cancelable: true, composed: true, view: window,
+                    clientX: x, clientY: y, screenX: x, screenY: y,
+                    button: 0, buttons: 1, detail: 1
+                };
+                if (extra) for (var k in extra) init[k] = extra[k];
+                var evt = new Ctor(type, init);
+                trust(evt);
+                target.dispatchEvent(evt);
+            }
+            if (typeof PointerEvent === 'function') {
+                fire('pointerdown', PointerEvent, { pointerId: 1, pointerType: 'mouse', isPrimary: true, pressure: 0.5 });
+            }
+            fire('mousedown', MouseEvent);
+            return true;
+        })()
+        """
+        _ = try? await evaluateJavaScriptAsUserGesture(js)
+    }
+
+    func pointerUp(at viewPoint: CGPoint, fireClick: Bool) async throws -> [String: Any]? {
+        let pageZoom = await currentPageZoom()
+        let hitRadius = Double(DSMetrics.pointerHitExpandRadius)
+        let webBridge = bridge
+        await MainActor.run {
+            webBridge?.simulateMouseUp(at: viewPoint)
+        }
+        let shouldClick = fireClick
+        setPointerButtons(0)
+
+        let js = """
+        (function() {
+            \(Self.jsPointConversion(viewPoint, pageZoom: pageZoom))
+            if (!window.__tvbOpenDropdown) { \(Self.jsDropdownHelpers) }
+            if (!window.__tvbResolveTargetAt) { \(Self.jsHitTestHelpers) }
+            if (!window.__tvbApplyHoverAt) { \(Self.jsHoverEmulationHelpers) }
+            if (!window.__tvbEnterVideoFullscreen) { \(Self.jsFullscreenHelpers) }
+
+            var resolved = window.__tvbResolveTargetAt(x, y, \(hitRadius));
+            var el = resolved.el;
+            var target = window.__tvbPointerDownTarget || resolved.target || el;
+            window.__tvbPointerDownTarget = null;
+            if (!target) {
+                window.__tvbApplyHoverAt(el, x, y, 0);
+                return { kind: 'miss' };
+            }
+
+            window.__tvbApplyHoverAt(el || target, x, y, 0);
+
+            function trust(evt) {
+                try { Object.defineProperty(evt, 'isTrusted', { get: function() { return true; } }); } catch (e) {}
+                return evt;
+            }
+            function fire(type, Ctor, extra) {
+                var init = {
+                    bubbles: true, cancelable: true, composed: true, view: window,
+                    clientX: x, clientY: y, screenX: x, screenY: y,
+                    button: 0,
+                    buttons: (type === 'mouseup' || type === 'pointerup') ? 0 : 1,
+                    detail: 1
+                };
+                if (extra) for (var k in extra) init[k] = extra[k];
+                var evt = new Ctor(type, init);
+                trust(evt);
+                target.dispatchEvent(evt);
+            }
+
+            if (typeof PointerEvent === 'function') {
+                fire('pointerup', PointerEvent, { pointerId: 1, pointerType: 'mouse', isPrimary: true, pressure: 0 });
+            }
+            fire('mouseup', MouseEvent);
+
+            if (!\(shouldClick ? "true" : "false")) {
+                return { kind: 'dragEnd' };
+            }
+
+            var field = target.closest('input, textarea, [contenteditable="true"]');
+            if (field) {
+                var tag = (field.tagName || '').toUpperCase();
+                var inputType = ((field.getAttribute('type') || 'text') + '').toLowerCase();
+                var skipTypes = { button:1, submit:1, reset:1, checkbox:1, radio:1, file:1, hidden:1, image:1 };
+                if (!(tag === 'INPUT' && skipTypes[inputType])) {
+                    try { field.focus(); } catch (e) {}
+                    window.__tvbActiveInput = field;
+                    var label = '';
+                    if (field.id) {
+                        var lab = document.querySelector('label[for=\"' + field.id + '\"]');
+                        if (lab) label = (lab.textContent || '').trim();
+                    }
+                    if (!label && field.getAttribute('aria-label')) label = field.getAttribute('aria-label');
+                    if (!label && field.placeholder) label = field.placeholder;
+                    if (!label && field.name) label = field.name;
+                    var value = '';
+                    if (tag === 'TEXTAREA' || tag === 'INPUT') value = field.value || '';
+                    else value = field.innerText || '';
+                    var isPassword = inputType === 'password';
+                    var autocomplete = ((field.getAttribute('autocomplete') || '') + '').toLowerCase();
+                    var nameHint = ((field.name || '') + ' ' + (field.id || '') + ' ' + label + ' ' + (field.placeholder || '') + ' ' + autocomplete).toLowerCase();
+                    var isOTP = autocomplete === 'one-time-code' || /\\botp\\b|one[-_]?time|verification.?code/.test(nameHint);
+                    var isNewPassword = autocomplete === 'new-password';
+                    var isUsernameField = !isPassword && !isOTP && (
+                        inputType === 'email' ||
+                        autocomplete === 'username' ||
+                        autocomplete === 'email' ||
+                        /\\b(user(name)?|email|login|account)\\b/.test(nameHint)
+                    );
+                    var fieldRole = 'other';
+                    if (isPassword && !isNewPassword && !isOTP) fieldRole = 'password';
+                    else if (isUsernameField) fieldRole = 'username';
+                    fire('click', MouseEvent);
+                    return {
+                        kind: 'input',
+                        inputType: tag === 'TEXTAREA' ? 'textarea' : inputType,
+                        name: field.name || '',
+                        value: value,
+                        placeholder: field.placeholder || '',
+                        label: label,
+                        isSecure: inputType === 'password',
+                        isLoginField: fieldRole === 'password' || fieldRole === 'username',
+                        fieldRole: fieldRole
+                    };
+                }
+            }
+
+            if (window.__tvbLooksLikeFullscreenControl(target) || window.__tvbLooksLikeFullscreenControl(el)) {
+                fire('click', MouseEvent);
+                if (document.documentElement.getAttribute('data-tvb-video-fs') === '1') {
+                    window.__tvbExitVideoFullscreen();
+                    return { kind: 'videoFullscreenExit' };
+                }
+                var entered = window.__tvbEnterVideoFullscreen(target);
+                return { kind: entered ? 'videoFullscreen' : 'clicked' };
+            }
+
+            fire('click', MouseEvent);
+
+            var ddRoot = target.closest('.dropdown, .vipmenu, .nav-item.dropdown');
+            var inMenuItem = target.closest('.dropdown-item, .dropdown-menu a');
+            if (ddRoot && !inMenuItem) {
+                window.__tvbOpenDropdown(ddRoot);
+                window.__tvbPinOverlay(ddRoot);
+                return { kind: 'dropdown' };
+            }
+
+            var searchToggle = target.closest(
+                '[data-toggle="dropdown"], [data-bs-toggle="dropdown"],' +
+                ' [data-toggle="collapse"], [data-bs-toggle="collapse"],' +
+                ' a[href="#search"], .search-toggle'
+            );
+            if (searchToggle) {
+                var panel = document.querySelector(
+                    '.dropdown.show, .vipmenu.show, .dropdown-menu.show, [class*="search"].show,' +
+                    ' .search-form.show, .collapse.show, .navbar .show'
+                );
+                if (panel) window.__tvbPinOverlay(panel);
+                return { kind: 'searchToggle' };
+            }
+
+            var navEl = target.closest('a[href], [data-href], .dropdown-item');
+            if (navEl) {
+                var href = navEl.getAttribute('href') || '';
+                var dataHref = navEl.getAttribute('data-href') || '';
+                var dest = '';
+                if (dataHref) dest = dataHref;
+                else if (href && href.indexOf('javascript:') !== 0 && href !== '#') dest = navEl.href || href;
+                if (dest) {
+                    window.location.assign(dest);
+                    return { kind: 'navigated' };
+                }
+            }
+
+            if (ddRoot) {
+                window.__tvbOpenDropdown(ddRoot);
+                window.__tvbPinOverlay(ddRoot);
+                return { kind: 'dropdown' };
+            }
+
+            return { kind: 'clicked' };
+        })()
+        """
+        let result = try await evaluateJavaScriptAsUserGesture(js)
+        return Self.dictionaryValue(result)
+    }
+
+    func dispatchWheel(deltaX: CGFloat, deltaY: CGFloat, at viewPoint: CGPoint) async {
+        let pageZoom = await currentPageZoom()
+        let js = """
+        (function() {
+            \(Self.jsPointConversion(viewPoint, pageZoom: pageZoom))
+            var el = document.elementFromPoint(x, y) || document.body || document.documentElement;
+            if (!el) return false;
+            var init = {
+                bubbles: true, cancelable: true, composed: true, view: window,
+                clientX: x, clientY: y, screenX: x, screenY: y,
+                deltaX: \(Double(deltaX)), deltaY: \(Double(deltaY)), deltaZ: 0,
+                deltaMode: 0
+            };
+            var evt;
+            try { evt = new WheelEvent('wheel', init); } catch (e) {
+                evt = new Event('wheel', { bubbles: true, cancelable: true });
+            }
+            try { Object.defineProperty(evt, 'isTrusted', { get: function() { return true; } }); } catch (e2) {}
+            el.dispatchEvent(evt);
+            return true;
+        })()
+        """
+        _ = try? await evaluateJavaScript(js)
     }
 
     func click(at viewPoint: CGPoint) async throws -> [String: Any]? {
@@ -727,16 +966,19 @@ extension JavaScriptExecutor {
                     try { chain[i].classList.add(window.__tvbHoverClass); } catch (e) {}
                 }
             };
-            window.__tvbApplyHoverAt = function(el, x, y) {
+            window.__tvbApplyHoverAt = function(el, x, y, buttons) {
+                var btnState = (typeof buttons === 'number') ? buttons : 0;
                 var prevEl = window.__tvbHoverLeaf || null;
                 var prevChain = window.__tvbHoverChain || [];
+                var moveExtra = { buttons: btnState };
+                var ptrMoveExtra = { pointerId: 1, pointerType: 'mouse', isPrimary: true, buttons: btnState, pressure: btnState ? 0.5 : 0 };
                 if (!el) {
                     if (prevEl) {
-                        window.__tvbFirePointerLike(prevEl, 'pointerout', typeof PointerEvent === 'function' ? PointerEvent : null, x, y, null, { pointerId: 1, pointerType: 'mouse', isPrimary: true });
-                        window.__tvbFirePointerLike(prevEl, 'pointerleave', typeof PointerEvent === 'function' ? PointerEvent : null, x, y, null, { pointerId: 1, pointerType: 'mouse', isPrimary: true, bubbles: false });
-                        window.__tvbFirePointerLike(prevEl, 'mouseout', MouseEvent, x, y, null);
+                        window.__tvbFirePointerLike(prevEl, 'pointerout', typeof PointerEvent === 'function' ? PointerEvent : null, x, y, null, { pointerId: 1, pointerType: 'mouse', isPrimary: true, buttons: btnState });
+                        window.__tvbFirePointerLike(prevEl, 'pointerleave', typeof PointerEvent === 'function' ? PointerEvent : null, x, y, null, { pointerId: 1, pointerType: 'mouse', isPrimary: true, bubbles: false, buttons: btnState });
+                        window.__tvbFirePointerLike(prevEl, 'mouseout', MouseEvent, x, y, null, moveExtra);
                         for (var li = 0; li < prevChain.length; li++) {
-                            window.__tvbFirePointerLike(prevChain[li], 'mouseleave', MouseEvent, x, y, null);
+                            window.__tvbFirePointerLike(prevChain[li], 'mouseleave', MouseEvent, x, y, null, moveExtra);
                         }
                     }
                     window.__tvbClearHoverClasses(prevChain);
@@ -747,11 +989,11 @@ extension JavaScriptExecutor {
 
                 if (el === prevEl) {
                     if (typeof PointerEvent === 'function') {
-                        window.__tvbFirePointerLike(el, 'pointermove', PointerEvent, x, y, null, { pointerId: 1, pointerType: 'mouse', isPrimary: true });
+                        window.__tvbFirePointerLike(el, 'pointermove', PointerEvent, x, y, null, ptrMoveExtra);
                     }
-                    window.__tvbFirePointerLike(el, 'mousemove', MouseEvent, x, y, null);
+                    window.__tvbFirePointerLike(el, 'mousemove', MouseEvent, x, y, null, moveExtra);
                     document.dispatchEvent(window.__tvbTrustEvent(new MouseEvent('mousemove', {
-                        bubbles: true, cancelable: true, view: window, clientX: x, clientY: y
+                        bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, buttons: btnState, button: 0
                     })));
                     return;
                 }
@@ -768,36 +1010,36 @@ extension JavaScriptExecutor {
 
                 if (prevEl) {
                     if (typeof PointerEvent === 'function') {
-                        window.__tvbFirePointerLike(prevEl, 'pointerout', PointerEvent, x, y, el, { pointerId: 1, pointerType: 'mouse', isPrimary: true });
+                        window.__tvbFirePointerLike(prevEl, 'pointerout', PointerEvent, x, y, el, { pointerId: 1, pointerType: 'mouse', isPrimary: true, buttons: btnState });
                     }
-                    window.__tvbFirePointerLike(prevEl, 'mouseout', MouseEvent, x, y, el);
+                    window.__tvbFirePointerLike(prevEl, 'mouseout', MouseEvent, x, y, el, moveExtra);
                     for (var l = 0; l < leaving.length; l++) {
                         if (typeof PointerEvent === 'function') {
-                            window.__tvbFirePointerLike(leaving[l], 'pointerleave', PointerEvent, x, y, el, { pointerId: 1, pointerType: 'mouse', isPrimary: true, bubbles: false });
+                            window.__tvbFirePointerLike(leaving[l], 'pointerleave', PointerEvent, x, y, el, { pointerId: 1, pointerType: 'mouse', isPrimary: true, bubbles: false, buttons: btnState });
                         }
-                        window.__tvbFirePointerLike(leaving[l], 'mouseleave', MouseEvent, x, y, el);
+                        window.__tvbFirePointerLike(leaving[l], 'mouseleave', MouseEvent, x, y, el, moveExtra);
                         try { leaving[l].classList.remove(window.__tvbHoverClass); } catch (e) {}
                     }
                 }
 
                 if (typeof PointerEvent === 'function') {
-                    window.__tvbFirePointerLike(el, 'pointerover', PointerEvent, x, y, prevEl, { pointerId: 1, pointerType: 'mouse', isPrimary: true });
+                    window.__tvbFirePointerLike(el, 'pointerover', PointerEvent, x, y, prevEl, { pointerId: 1, pointerType: 'mouse', isPrimary: true, buttons: btnState });
                 }
-                window.__tvbFirePointerLike(el, 'mouseover', MouseEvent, x, y, prevEl);
+                window.__tvbFirePointerLike(el, 'mouseover', MouseEvent, x, y, prevEl, moveExtra);
                 for (var eIdx = entering.length - 1; eIdx >= 0; eIdx--) {
                     if (typeof PointerEvent === 'function') {
-                        window.__tvbFirePointerLike(entering[eIdx], 'pointerenter', PointerEvent, x, y, prevEl, { pointerId: 1, pointerType: 'mouse', isPrimary: true, bubbles: false });
+                        window.__tvbFirePointerLike(entering[eIdx], 'pointerenter', PointerEvent, x, y, prevEl, { pointerId: 1, pointerType: 'mouse', isPrimary: true, bubbles: false, buttons: btnState });
                     }
-                    window.__tvbFirePointerLike(entering[eIdx], 'mouseenter', MouseEvent, x, y, prevEl);
+                    window.__tvbFirePointerLike(entering[eIdx], 'mouseenter', MouseEvent, x, y, prevEl, moveExtra);
                     try { entering[eIdx].classList.add(window.__tvbHoverClass); } catch (err) {}
                 }
 
                 if (typeof PointerEvent === 'function') {
-                    window.__tvbFirePointerLike(el, 'pointermove', PointerEvent, x, y, null, { pointerId: 1, pointerType: 'mouse', isPrimary: true });
+                    window.__tvbFirePointerLike(el, 'pointermove', PointerEvent, x, y, null, ptrMoveExtra);
                 }
-                window.__tvbFirePointerLike(el, 'mousemove', MouseEvent, x, y, null);
+                window.__tvbFirePointerLike(el, 'mousemove', MouseEvent, x, y, null, moveExtra);
                 document.dispatchEvent(window.__tvbTrustEvent(new MouseEvent('mousemove', {
-                    bubbles: true, cancelable: true, view: window, clientX: x, clientY: y
+                    bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, buttons: btnState, button: 0
                 })));
 
                 window.__tvbHoverLeaf = el;
@@ -806,6 +1048,6 @@ extension JavaScriptExecutor {
     """
 
     static let jsDispatchHover = """
-            window.__tvbApplyHoverAt(el, x, y);
+            window.__tvbApplyHoverAt(el, x, y, 0);
     """
 }

@@ -123,11 +123,12 @@ final class PointerController {
     }
 
     private func velocity(for type: UIPress.PressType) -> CGPoint {
+        let speed = RingNavigation.pointerSpeed * SettingsManager.shared.mouseSpeed
         switch type {
-        case .upArrow:    return CGPoint(x: 0, y: -RingNavigation.pointerSpeed)
-        case .downArrow:  return CGPoint(x: 0, y: RingNavigation.pointerSpeed)
-        case .leftArrow:  return CGPoint(x: -RingNavigation.pointerSpeed, y: 0)
-        case .rightArrow: return CGPoint(x: RingNavigation.pointerSpeed, y: 0)
+        case .upArrow:    return CGPoint(x: 0, y: -speed)
+        case .downArrow:  return CGPoint(x: 0, y: speed)
+        case .leftArrow:  return CGPoint(x: -speed, y: 0)
+        case .rightArrow: return CGPoint(x: speed, y: 0)
         default:          return .zero
         }
     }
@@ -154,7 +155,7 @@ final class PointerController {
     }
 
     private func applyTapNudge() {
-        let step = RingNavigation.tapNudge
+        let step = RingNavigation.tapNudge * SettingsManager.shared.mouseSpeed
         if moveVelocity.y < 0 { moveBy(dx: 0, dy: -step) }
         else if moveVelocity.y > 0 { moveBy(dx: 0, dy: step) }
         else if moveVelocity.x < 0 { moveBy(dx: -step, dy: 0) }

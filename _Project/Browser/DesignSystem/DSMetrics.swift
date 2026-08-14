@@ -52,10 +52,19 @@ enum DSMetrics {
     static let pointerHitExpandRadius: CGFloat = hitTarget
     /// Ignore Bootstrap open/close while the user is actively scrolling.
     static let pointerScrollDropdownSuppress: TimeInterval = 0.4
+    /// Fixed CSS viewport width so sites get a desktop layout under the desktop UA.
+    static let desktopViewportWidth: Int = 1280
+    /// Movement below this (view points) counts as a tap rather than a drag.
+    static let pointerTapSlop: CGFloat = 12
     static let pageZoomDefault: CGFloat = 1.0
     static let pageZoomMin: CGFloat = 0.5
     static let pageZoomMax: CGFloat = 3.0
     static let pageZoomStep: CGFloat = 0.1
+    /// Pointer movement speed multiplier (1.0 = 100%).
+    static let mouseSpeedDefault: CGFloat = 1.0
+    static let mouseSpeedMin: CGFloat = 0.5
+    static let mouseSpeedMax: CGFloat = 2.5
+    static let mouseSpeedStep: CGFloat = 0.1
     static let fieldHeight: CGFloat = 52
     static let focusBorderWidth: CGFloat = 2
     static let cursorSize: CGFloat = 48

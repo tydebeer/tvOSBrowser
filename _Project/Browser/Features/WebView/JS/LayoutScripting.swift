@@ -15,7 +15,7 @@ extension JavaScriptExecutor {
                 meta.setAttribute('name', 'viewport');
                 head.insertBefore(meta, head.firstChild);
             }
-            meta.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
+            meta.setAttribute('content', 'width=\(DSMetrics.desktopViewportWidth), initial-scale=1, maximum-scale=1, user-scalable=no');
 
             var layout = document.getElementById('tvb-layout-styles');
             if (layout) layout.remove();

@@ -5,6 +5,8 @@ actor JavaScriptExecutor {
     weak var bridge: WebViewBridge?
     var pendingPointerTask: Task<Void, Never>?
     private var scrollSuppressUntil = Date.distantPast
+    /// 0 = none, 1 = primary button held (Select press-drag).
+    private(set) var pointerButtons: Int = 0
 
     static let clickableSelector =
         "a,button,input,select,textarea,label,[role=\"button\"],[role=\"link\"],[onclick],[tabindex]:not([tabindex=\"-1\"]),.pointer,[data-href],.dropdown-item,.nav-link"
@@ -19,6 +21,10 @@ actor JavaScriptExecutor {
 
     var shouldSuppressDropdownHover: Bool {
         Date() < scrollSuppressUntil
+    }
+
+    func setPointerButtons(_ buttons: Int) {
+        pointerButtons = max(0, buttons)
     }
 
     func refreshThemeStyles() async {

@@ -39,6 +39,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)simulateClickAtPoint:(CGPoint)point;
 /// Best-effort native mouse move (drives real CSS :hover when WebKit supports it).
 - (void)simulateMouseMoveAtPoint:(CGPoint)point;
+/// Best-effort native mouse button down / up for press-drag-release.
+- (void)simulateMouseDownAtPoint:(CGPoint)point;
+- (void)simulateMouseUpAtPoint:(CGPoint)point;
 - (void)clearCache;
 - (void)clearCookiesWithCompletion:(void (^)(void))completion;
 - (void)setFrame:(CGRect)frame;

@@ -87,6 +87,18 @@ final class BrowserViewModel {
         applyPageZoom()
     }
 
+    func mouseSpeedIn() {
+        settings.mouseSpeed += DSMetrics.mouseSpeedStep
+    }
+
+    func mouseSpeedOut() {
+        settings.mouseSpeed -= DSMetrics.mouseSpeedStep
+    }
+
+    func resetMouseSpeed() {
+        settings.mouseSpeed = DSMetrics.mouseSpeedDefault
+    }
+
     // MARK: - Navigation
 
     func load(rawInput: String) {
@@ -138,6 +150,27 @@ final class BrowserViewModel {
         webContainer.bridge.clearCookies {}
     }
 
+    func handlePointerDown(at screenPoint: CGPoint) {
+        guard screenPoint.y >= 0 else { return }
+        inputTask?.cancel()
+        inputTask = Task { [weak self] in
+            guard let self else { return }
+            await self.webContainer.jsExecutor.pointerDown(at: screenPoint)
+        }
+    }
+
+    func handlePointerUp(at screenPoint: CGPoint, fireClick: Bool) {
+        guard screenPoint.y >= 0 else { return }
+        inputTask?.cancel()
+        inputTask = Task { [weak self] in
+            guard let self else { return }
+            let result = try? await self.webContainer.jsExecutor.pointerUp(at: screenPoint, fireClick: fireClick)
+            guard !Task.isCancelled else { return }
+            self.onClickCompleted?()
+            self.handleClickResult(result)
+        }
+    }
+
     func handlePointerClick(at screenPoint: CGPoint) {
         guard screenPoint.y >= 0 else { return }
         inputTask?.cancel()
@@ -146,69 +179,79 @@ final class BrowserViewModel {
             let result = try? await self.webContainer.jsExecutor.click(at: screenPoint)
             guard !Task.isCancelled else { return }
             self.onClickCompleted?()
-            guard let result else { return }
-            let kind = result["kind"] as? String
-
-            if kind == "videoFullscreen" {
-                self.onVideoFullscreenRequested?()
-                return
-            }
-            if kind == "videoFullscreenExit" {
-                self.onVideoFullscreenExitRequested?()
-                return
-            }
-            guard kind == "input" else { return }
-
-            let inputType = (result["inputType"] as? String) ?? "text"
-            let isSecure: Bool
-            if let b = result["isSecure"] as? Bool {
-                isSecure = b
-            } else if let n = result["isSecure"] as? NSNumber {
-                isSecure = n.boolValue
-            } else {
-                isSecure = inputType == "password"
-            }
-            let roleString = (result["fieldRole"] as? String) ?? ""
-            let fieldRole = WebTextFieldRole(rawValue: roleString) ?? (isSecure ? .password : .other)
-            let isLoginField: Bool
-            if let b = result["isLoginField"] as? Bool {
-                isLoginField = b
-            } else if let n = result["isLoginField"] as? NSNumber {
-                isLoginField = n.boolValue
-            } else {
-                isLoginField = fieldRole == .username || fieldRole == .password
-            }
-            let value = (result["value"] as? String) ?? ""
-            let placeholder = (result["placeholder"] as? String) ?? ""
-            let label = (result["label"] as? String) ?? ""
-            let title = Self.inputSheetTitle(
-                label: label,
-                placeholder: placeholder,
-                inputType: inputType,
-                isSecure: isSecure
-            )
-
-            let request = WebTextInputRequest(
-                title: title,
-                currentValue: value,
-                placeholder: placeholder.isEmpty ? title : placeholder.capitalized,
-                isSecure: isSecure,
-                isLoginField: isLoginField,
-                fieldRole: fieldRole,
-                keyboardType: Self.keyboardType(for: inputType)
-            )
-
-            self.lastFieldRole = fieldRole
-
-            if isLoginField, let host = CredentialStore.normalizedHost(from: self.currentURL) {
-                let saved = self.credentials.credentials(forHost: host)
-                if !saved.isEmpty {
-                    self.onLoginAutofillRequested?(saved, request)
-                    return
-                }
-            }
-            self.onTextInputRequested?(request)
+            self.handleClickResult(result)
         }
+    }
+
+    func dispatchWheel(deltaX: CGFloat, deltaY: CGFloat, at screenPoint: CGPoint) {
+        Task {
+            await webContainer.jsExecutor.dispatchWheel(deltaX: deltaX, deltaY: deltaY, at: screenPoint)
+        }
+    }
+
+    private func handleClickResult(_ result: [String: Any]?) {
+        guard let result else { return }
+        let kind = result["kind"] as? String
+
+        if kind == "videoFullscreen" {
+            onVideoFullscreenRequested?()
+            return
+        }
+        if kind == "videoFullscreenExit" {
+            onVideoFullscreenExitRequested?()
+            return
+        }
+        guard kind == "input" else { return }
+
+        let inputType = (result["inputType"] as? String) ?? "text"
+        let isSecure: Bool
+        if let b = result["isSecure"] as? Bool {
+            isSecure = b
+        } else if let n = result["isSecure"] as? NSNumber {
+            isSecure = n.boolValue
+        } else {
+            isSecure = inputType == "password"
+        }
+        let roleString = (result["fieldRole"] as? String) ?? ""
+        let fieldRole = WebTextFieldRole(rawValue: roleString) ?? (isSecure ? .password : .other)
+        let isLoginField: Bool
+        if let b = result["isLoginField"] as? Bool {
+            isLoginField = b
+        } else if let n = result["isLoginField"] as? NSNumber {
+            isLoginField = n.boolValue
+        } else {
+            isLoginField = fieldRole == .username || fieldRole == .password
+        }
+        let value = (result["value"] as? String) ?? ""
+        let placeholder = (result["placeholder"] as? String) ?? ""
+        let label = (result["label"] as? String) ?? ""
+        let title = Self.inputSheetTitle(
+            label: label,
+            placeholder: placeholder,
+            inputType: inputType,
+            isSecure: isSecure
+        )
+
+        let request = WebTextInputRequest(
+            title: title,
+            currentValue: value,
+            placeholder: placeholder.isEmpty ? title : placeholder.capitalized,
+            isSecure: isSecure,
+            isLoginField: isLoginField,
+            fieldRole: fieldRole,
+            keyboardType: Self.keyboardType(for: inputType)
+        )
+
+        lastFieldRole = fieldRole
+
+        if isLoginField, let host = CredentialStore.normalizedHost(from: currentURL) {
+            let saved = credentials.credentials(forHost: host)
+            if !saved.isEmpty {
+                onLoginAutofillRequested?(saved, request)
+                return
+            }
+        }
+        onTextInputRequested?(request)
     }
 
     func submitTextInput(_ text: String) {
@@ -299,6 +342,10 @@ final class BrowserViewModel {
         Task {
             await webContainer.jsExecutor.exitVideoFullscreen()
         }
+    }
+
+    func isVideoFullscreenActive() async -> Bool {
+        await webContainer.jsExecutor.isVideoFullscreenActive()
     }
 
     func seekFullscreenVideo(by seconds: Double) {
@@ -394,6 +441,8 @@ final class BrowserViewModel {
                 self.isShowingStartPage = false
                 self.webContainer.isHidden = false
                 self.onStartPageVisibilityChanged?(false)
+                // New navigation invalidates any in-page video fullscreen session.
+                self.onVideoFullscreenExitRequested?()
             }
         }
 
