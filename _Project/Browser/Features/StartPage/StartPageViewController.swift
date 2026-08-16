@@ -9,6 +9,7 @@ final class StartPageViewController: UIViewController {
     private let contentStack = UIStackView()
     private let gridFactory = StartPageFavoritesGridView()
     private let historySection = StartPageHistorySectionView()
+    private let creditLabel = UILabel()
 
     private var hoveredTile: StartPageTileView?
 
@@ -16,6 +17,7 @@ final class StartPageViewController: UIViewController {
         super.viewDidLoad()
         setupWallpaper()
         setupScrollContent()
+        setupCredit()
         reloadContent()
     }
 
@@ -28,6 +30,7 @@ final class StartPageViewController: UIViewController {
     func applyAppearance() {
         wallpaper.applyColors()
         gridFactory.applyAppearance()
+        creditLabel.textColor = DSColor.labelTertiary
     }
 
     func reloadContent() {
@@ -134,8 +137,22 @@ final class StartPageViewController: UIViewController {
             contentStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: DSMetrics.space10),
             contentStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: DSMetrics.space8),
             contentStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -DSMetrics.space8),
-            contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -DSMetrics.space10),
+            contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -DSMetrics.space12),
             contentStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -DSMetrics.space8 * 2),
+        ])
+    }
+
+    private func setupCredit() {
+        creditLabel.text = "created by tydebeer"
+        creditLabel.font = DSTypography.footnote(weight: .medium)
+        creditLabel.textColor = DSColor.labelTertiary
+        creditLabel.textAlignment = .center
+        creditLabel.isUserInteractionEnabled = false
+        creditLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(creditLabel)
+        NSLayoutConstraint.activate([
+            creditLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            creditLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -DSMetrics.space6),
         ])
     }
 
