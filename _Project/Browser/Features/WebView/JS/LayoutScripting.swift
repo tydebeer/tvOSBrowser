@@ -95,6 +95,8 @@ extension JavaScriptExecutor {
     private static func jsCaptionStyleInstall(sizePercent: Int, fontCSS: String, colorCSS: String) -> String {
         let family = fontCSS.replacingOccurrences(of: "\"", with: "")
         let color = colorCSS.replacingOccurrences(of: "\"", with: "")
+        // em keeps the WebVTT default cue size; % on ::cue is relative to video height.
+        let sizeEm = String(format: "%.2f", Double(sizePercent) / 100.0)
         return """
             var cue = document.getElementById('tvb-caption-styles');
             if (!cue) {
@@ -104,13 +106,13 @@ extension JavaScriptExecutor {
             }
             cue.textContent = [
                 'video::cue {',
-                '  font-size: \(sizePercent)% !important;',
+                '  font-size: \(sizeEm)em !important;',
                 '  font-family: \(family) !important;',
                 '  color: \(color) !important;',
                 '  background-color: rgba(0,0,0,0.65) !important;',
                 '}',
                 'video::-webkit-media-text-track-display, video::-webkit-media-text-track-container {',
-                '  font-size: \(sizePercent)% !important;',
+                '  font-size: \(sizeEm)em !important;',
                 '  font-family: \(family) !important;',
                 '  color: \(color) !important;',
                 '}'

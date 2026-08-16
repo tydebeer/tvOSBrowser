@@ -104,6 +104,7 @@ final class SafariMenuViewController: DimmedMaterialSheetController {
     private var tableHeightConstraint: NSLayoutConstraint?
     private weak var zoomStepperCell: SafariMenuZoomStepperCell?
     private weak var mouseSpeedStepperCell: SafariMenuZoomStepperCell?
+    private weak var captionSizeStepperCell: SafariMenuZoomStepperCell?
 
     init(title: String, sections: [SafariMenuSection]) {
         self.sections = sections
@@ -132,6 +133,10 @@ final class SafariMenuViewController: DimmedMaterialSheetController {
         updateStepperPercent(percent, title: "Mouse Speed")
     }
 
+    func updateCaptionSizePercent(_ percent: Int) {
+        updateStepperPercent(percent, title: "Caption Size")
+    }
+
     private func updateStepperPercent(_ percent: Int, title: String) {
         for sectionIndex in sections.indices {
             for rowIndex in sections[sectionIndex].rows.indices {
@@ -149,6 +154,8 @@ final class SafariMenuViewController: DimmedMaterialSheetController {
             zoomStepperCell?.setPercent(percent)
         } else if title == "Mouse Speed" {
             mouseSpeedStepperCell?.setPercent(percent)
+        } else if title == "Caption Size" {
+            captionSizeStepperCell?.setPercent(percent)
         }
     }
 
@@ -159,6 +166,18 @@ final class SafariMenuViewController: DimmedMaterialSheetController {
     func setPointerInputMode(_ mode: PointerInputMode) {
         setRowSelected(title: "Trackpad", isOn: mode == .trackpad)
         setRowSelected(title: "Ring", isOn: mode == .ring)
+    }
+
+    func setCaptionFont(_ font: CaptionFont) {
+        for option in CaptionFont.allCases {
+            setRowSelected(title: option.menuTitle, isOn: option == font)
+        }
+    }
+
+    func setCaptionColor(_ color: CaptionColor) {
+        for option in CaptionColor.allCases {
+            setRowSelected(title: option.menuTitle, isOn: option == color)
+        }
     }
 
     private func setRowSelected(title: String, isOn: Bool) {
@@ -309,27 +328,17 @@ extension SafariMenuViewController: UITableViewDataSource, UITableViewDelegate {
                 percent: row.zoomPercent,
                 onZoomOut: { [weak self] in
                     row.onZoomOut?()
-                    if stepperTitle == "Mouse Speed" {
-                        let percent = Int((SettingsManager.shared.mouseSpeed * 100).rounded())
-                        self?.updateMouseSpeedPercent(percent)
-                    } else {
-                        let percent = Int((SettingsManager.shared.pageZoom * 100).rounded())
-                        self?.updateZoomPercent(percent)
-                    }
+                    self?.refreshStepperPercent(for: stepperTitle)
                 },
                 onZoomIn: { [weak self] in
                     row.onZoomIn?()
-                    if stepperTitle == "Mouse Speed" {
-                        let percent = Int((SettingsManager.shared.mouseSpeed * 100).rounded())
-                        self?.updateMouseSpeedPercent(percent)
-                    } else {
-                        let percent = Int((SettingsManager.shared.pageZoom * 100).rounded())
-                        self?.updateZoomPercent(percent)
-                    }
+                    self?.refreshStepperPercent(for: stepperTitle)
                 }
             )
             if stepperTitle == "Mouse Speed" {
                 mouseSpeedStepperCell = cell
+            } else if stepperTitle == "Caption Size" {
+                captionSizeStepperCell = cell
             } else {
                 zoomStepperCell = cell
             }
@@ -341,6 +350,17 @@ extension SafariMenuViewController: UITableViewDataSource, UITableViewDelegate {
             ) as! SafariMenuCell
             cell.configure(with: row)
             return cell
+        }
+    }
+
+    private func refreshStepperPercent(for title: String) {
+        switch title {
+        case "Mouse Speed":
+            updateMouseSpeedPercent(Int((SettingsManager.shared.mouseSpeed * 100).rounded()))
+        case "Caption Size":
+            updateCaptionSizePercent(Int((SettingsManager.shared.captionSize * 100).rounded()))
+        default:
+            updateZoomPercent(Int((SettingsManager.shared.pageZoom * 100).rounded()))
         }
     }
 

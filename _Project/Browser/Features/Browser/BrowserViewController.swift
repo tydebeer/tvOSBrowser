@@ -24,6 +24,7 @@ final class BrowserViewController: GCEventViewController {
     private var didInstallWebContainer = false
     /// Blocks overlapping chrome presents (menu + subtitles, double Menu, etc.).
     private var isPresentingChrome = false
+    private weak var videoSettingsMenu: SafariMenuViewController?
     /// Last measured document scroll size (CSS px); used to avoid scrolling into empty canvas.
     private var cachedDocumentSize: CGSize = .zero
 
@@ -492,6 +493,29 @@ final class BrowserViewController: GCEventViewController {
         browserMenu.updateMouseSpeedPercent(percent)
     }
 
+    private func syncCaptionSizeMenuPercent() {
+        let percent = Int((SettingsManager.shared.captionSize * 100).rounded())
+        videoSettingsMenu?.updateCaptionSizePercent(percent)
+    }
+
+    private func selectCaptionFont(_ font: CaptionFont) {
+        SettingsManager.shared.captionFont = font
+        videoSettingsMenu?.setCaptionFont(font)
+        applyCaptionStyle()
+    }
+
+    private func selectCaptionColor(_ color: CaptionColor) {
+        SettingsManager.shared.captionColor = color
+        videoSettingsMenu?.setCaptionColor(color)
+        applyCaptionStyle()
+    }
+
+    private func applyCaptionStyle() {
+        Task {
+            await viewModel.webContainer.jsExecutor.applyCaptionStyle()
+        }
+    }
+
     private func selectPointerInput(_ mode: PointerInputMode) {
         SettingsManager.shared.pointerInputMode = mode
         browserMenu.setPointerInputMode(mode)
@@ -847,18 +871,70 @@ final class BrowserViewController: GCEventViewController {
             }
         }
 
+        let settings = SettingsManager.shared
+        let captionPercent = Int((settings.captionSize * 100).rounded())
+        let captionFont = settings.captionFont
+        let captionColor = settings.captionColor
+        var captionRows: [SafariMenuRow] = [
+            .zoomStepper(
+                title: "Caption Size",
+                percent: captionPercent,
+                onZoomOut: { [weak self] in
+                    self?.viewModel.captionSizeOut()
+                    self?.syncCaptionSizeMenuPercent()
+                    self?.applyCaptionStyle()
+                },
+                onZoomIn: { [weak self] in
+                    self?.viewModel.captionSizeIn()
+                    self?.syncCaptionSizeMenuPercent()
+                    self?.applyCaptionStyle()
+                }
+            ),
+            SafariMenuRow(
+                title: "Reset Caption Size",
+                symbol: "arrow.counterclockwise",
+                dismissesOnSelect: false,
+                action: { [weak self] in
+                    self?.viewModel.resetCaptionSize()
+                    self?.syncCaptionSizeMenuPercent()
+                    self?.applyCaptionStyle()
+                }
+            ),
+        ]
+        captionRows.append(contentsOf: CaptionFont.allCases.map { font in
+            SafariMenuRow(
+                title: font.menuTitle,
+                symbol: "textformat",
+                style: captionFont == font ? .selected : .normal,
+                dismissesOnSelect: false,
+                action: { [weak self] in self?.selectCaptionFont(font) }
+            )
+        })
+        captionRows.append(contentsOf: CaptionColor.allCases.map { color in
+            SafariMenuRow(
+                title: color.menuTitle,
+                symbol: "paintpalette",
+                style: captionColor == color ? .selected : .normal,
+                dismissesOnSelect: false,
+                action: { [weak self] in self?.selectCaptionColor(color) }
+            )
+        })
+
         let menu = SafariMenuViewController(
             title: "Video",
             sections: [
                 SafariMenuSection(title: "Subtitles", rows: subtitleRows),
+                SafariMenuSection(title: "Caption Style", rows: captionRows),
                 SafariMenuSection(title: "Speed", rows: speedRows),
                 SafariMenuSection(title: "Audio", rows: audioRows),
             ]
         )
         menu.onDismiss = { [weak self] in
+            self?.videoSettingsMenu = nil
             self?.reclaimPointerControl()
             self?.noteCursorActivity()
         }
+        videoSettingsMenu = menu
         presentChrome(menu)
     }
 

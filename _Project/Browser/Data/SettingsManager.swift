@@ -24,8 +24,8 @@ enum CaptionFont: String, CaseIterable {
     var cssFamily: String {
         switch self {
         case .system: return "inherit"
-        case .sans: return "-apple-system, Helvetica Neue, sans-serif"
-        case .serif: return "Georgia, Times New Roman, serif"
+        case .sans: return "-apple-system, 'Helvetica Neue', sans-serif"
+        case .serif: return "Georgia, 'Times New Roman', serif"
         case .mono: return "Menlo, Consolas, monospace"
         }
     }

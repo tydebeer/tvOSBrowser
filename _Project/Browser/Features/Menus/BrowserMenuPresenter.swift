@@ -23,11 +23,6 @@ final class BrowserMenuPresenter {
     var onResetMouseSpeed: (() -> Void)?
     var onTogglePreferDarkSites: (() -> Void)?
     var onSelectPointerInput: ((PointerInputMode) -> Void)?
-    var onCaptionSizeIn: (() -> Void)?
-    var onCaptionSizeOut: (() -> Void)?
-    var onResetCaptionSize: (() -> Void)?
-    var onSelectCaptionFont: ((CaptionFont) -> Void)?
-    var onSelectCaptionColor: ((CaptionColor) -> Void)?
     var onClearCache: (() -> Void)?
     var onClearCookies: (() -> Void)?
     var onClearHistory: (() -> Void)?
@@ -48,18 +43,6 @@ final class BrowserMenuPresenter {
 
     func setPointerInputMode(_ mode: PointerInputMode) {
         presentedMenu?.setPointerInputMode(mode)
-    }
-
-    func updateCaptionSizePercent(_ percent: Int) {
-        presentedMenu?.updateCaptionSizePercent(percent)
-    }
-
-    func setCaptionFont(_ font: CaptionFont) {
-        presentedMenu?.setCaptionFont(font)
-    }
-
-    func setCaptionColor(_ color: CaptionColor) {
-        presentedMenu?.setCaptionColor(color)
     }
 
     func present(
@@ -166,44 +149,6 @@ final class BrowserMenuPresenter {
                 action: { [weak self] in self?.onSelectPointerInput?(.ring) }
             ),
         ]))
-
-        // MARK: Captions
-        let captionPercent = Int((settings.captionSize * 100).rounded())
-        let captionFont = settings.captionFont
-        let captionColor = settings.captionColor
-        var captionRows: [SafariMenuRow] = [
-            .zoomStepper(
-                title: "Caption Size",
-                percent: captionPercent,
-                onZoomOut: { [weak self] in self?.onCaptionSizeOut?() },
-                onZoomIn: { [weak self] in self?.onCaptionSizeIn?() }
-            ),
-            SafariMenuRow(
-                title: "Reset Caption Size",
-                symbol: "arrow.counterclockwise",
-                dismissesOnSelect: false,
-                action: { [weak self] in self?.onResetCaptionSize?() }
-            ),
-        ]
-        captionRows.append(contentsOf: CaptionFont.allCases.map { font in
-            SafariMenuRow(
-                title: font.menuTitle,
-                symbol: "textformat",
-                style: captionFont == font ? .selected : .normal,
-                dismissesOnSelect: false,
-                action: { [weak self] in self?.onSelectCaptionFont?(font) }
-            )
-        })
-        captionRows.append(contentsOf: CaptionColor.allCases.map { color in
-            SafariMenuRow(
-                title: color.menuTitle,
-                symbol: "paintpalette",
-                style: captionColor == color ? .selected : .normal,
-                dismissesOnSelect: false,
-                action: { [weak self] in self?.onSelectCaptionColor?(color) }
-            )
-        })
-        sections.append(SafariMenuSection(title: "Captions", rows: captionRows))
 
         // MARK: Display
         let preferDark = settings.preferDarkSites

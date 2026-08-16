@@ -100,6 +100,18 @@ final class BrowserViewModel {
         settings.mouseSpeed = DSMetrics.mouseSpeedDefault
     }
 
+    func captionSizeIn() {
+        settings.captionSize += DSMetrics.captionSizeStep
+    }
+
+    func captionSizeOut() {
+        settings.captionSize -= DSMetrics.captionSizeStep
+    }
+
+    func resetCaptionSize() {
+        settings.captionSize = DSMetrics.captionSizeDefault
+    }
+
     // MARK: - Navigation
 
     func load(rawInput: String) {
