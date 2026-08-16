@@ -24,15 +24,21 @@ final class BrowserViewController: GCEventViewController {
     private var didInstallWebContainer = false
     /// Blocks overlapping chrome presents (menu + subtitles, double Menu, etc.).
     private var isPresentingChrome = false
+    /// Swallow Menu after a sheet closes so Back doesn't also exit video fullscreen.
+    private var ignoreMenuUntil: TimeInterval = 0
     private weak var videoSettingsMenu: SafariMenuViewController?
     /// Last measured document scroll size (CSS px); used to avoid scrolling into empty canvas.
     private var cachedDocumentSize: CGSize = .zero
 
     override var canBecomeFirstResponder: Bool { true }
 
-    /// Remote-pad touches begin in the focused view; keep the clickpad focused.
+    /// Remote-pad touches begin in the focused view; keep the clickpad focused
+    /// unless a sheet is up — otherwise Up is stolen from the Video menu.
     override var preferredFocusEnvironments: [UIFocusEnvironment] {
-        [clickpadCaptureView]
+        if let presented = presentedViewController {
+            return [presented]
+        }
+        return [clickpadCaptureView]
     }
 
     override func viewDidLoad() {
@@ -708,32 +714,37 @@ final class BrowserViewController: GCEventViewController {
         assert(Thread.isMainThread)
         guard presentedViewController == nil, !isPresentingChrome else { return false }
         isPresentingChrome = true
+        clickpadCaptureView.allowsFocus = false
 
         if let menu = child as? SafariMenuViewController {
             let prior = menu.onDismiss
             menu.onDismiss = { [weak self] in
-                self?.finishChromePresentation()
+                self?.noteChromeDismissed()
                 prior?()
             }
         }
 
         present(child, animated: false)
+        setNeedsFocusUpdate()
+        updateFocusIfNeeded()
         return true
     }
 
-    private func finishChromePresentation() {
+    private func noteChromeDismissed() {
+        isPresentingChrome = false
+        clickpadCaptureView.allowsFocus = true
+        ignoreMenuUntil = ProcessInfo.processInfo.systemUptime + DSMetrics.menuDoublePressInterval
         if presentedViewController == nil {
-            isPresentingChrome = false
+            reclaimPointerControl()
         }
     }
 
     override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
-        super.dismiss(animated: flag) { [weak self] in
-            // Clear before completion so chained menu presents (e.g. Saved Passwords → Delete) work.
-            if self?.presentedViewController == nil {
-                self?.isPresentingChrome = false
-            }
+        super.dismiss(animated: false) { [weak self] in
             completion?()
+            if self?.presentedViewController == nil {
+                self?.noteChromeDismissed()
+            }
         }
     }
 
@@ -805,14 +816,20 @@ final class BrowserViewController: GCEventViewController {
         guard presentedViewController == nil, !isPresentingChrome else { return }
 
         var speedRows: [SafariMenuRow] = []
+        let speedTitles = DSMetrics.videoPlaybackRates.map { Self.videoRateTitle($0) }
         for option in DSMetrics.videoPlaybackRates {
             let selected = abs(option - rate) < 0.01
             speedRows.append(SafariMenuRow(
                 title: Self.videoRateTitle(option),
                 symbol: selected ? "checkmark.circle.fill" : "circle",
                 style: selected ? .selected : .normal,
+                dismissesOnSelect: false,
                 action: { [weak self] in
                     self?.viewModel.setVideoPlaybackRate(option)
+                    self?.videoSettingsMenu?.setExclusiveSelection(
+                        selectedTitle: Self.videoRateTitle(option),
+                        titles: speedTitles
+                    )
                 }
             ))
         }
@@ -821,13 +838,20 @@ final class BrowserViewController: GCEventViewController {
             SafariMenuRow(
                 title: muted ? "Unmute" : "Mute",
                 symbol: muted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                dismissesOnSelect: false,
                 action: { [weak self] in
-                    self?.viewModel.setVideoMuted(!muted)
+                    guard let self else { return }
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        let snap = await self.viewModel.videoSettingsSnapshot()
+                        self.viewModel.setVideoMuted(!snap.muted)
+                    }
                 }
             )
         ]
 
         var subtitleRows: [SafariMenuRow] = []
+        var subtitleTitles: [String] = []
         if tracks.isEmpty {
             subtitleRows.append(SafariMenuRow(
                 title: "No Subtitles Found",
@@ -837,12 +861,15 @@ final class BrowserViewController: GCEventViewController {
             ))
         } else {
             let offSelected = selectedIndex < 0
+            subtitleTitles.append("Off")
             subtitleRows.append(SafariMenuRow(
                 title: "Off",
                 symbol: "captions.bubble",
                 style: offSelected ? .selected : .normal,
+                dismissesOnSelect: false,
                 action: { [weak self] in
                     self?.viewModel.setFullscreenSubtitleTrack(index: -1)
+                    self?.videoSettingsMenu?.setExclusiveSelection(selectedTitle: "Off", titles: subtitleTitles)
                 }
             ))
             for track in tracks {
@@ -854,13 +881,16 @@ final class BrowserViewController: GCEventViewController {
                 let title = (label?.isEmpty == false) ? label! : "Track \(index + 1)"
                 let kind = (track["kind"] as? String) ?? "subtitles"
                 let isOn = index == selectedIndex
+                subtitleTitles.append(title)
                 subtitleRows.append(SafariMenuRow(
                     title: title,
                     subtitle: kind.capitalized,
                     symbol: isOn ? "checkmark.circle.fill" : "circle",
                     style: isOn ? .selected : .normal,
+                    dismissesOnSelect: false,
                     action: { [weak self] in
                         self?.viewModel.setFullscreenSubtitleTrack(index: index)
+                        self?.videoSettingsMenu?.setExclusiveSelection(selectedTitle: title, titles: subtitleTitles)
                     }
                 ))
             }
@@ -941,12 +971,19 @@ final class BrowserViewController: GCEventViewController {
     }
 
     private func handleMenuPress() {
-        if presentedViewController != nil {
+        if ProcessInfo.processInfo.systemUptime < ignoreMenuUntil {
+            return
+        }
+
+        if presentedViewController != nil || isPresentingChrome {
             pendingMenuWorkItem?.cancel()
             pendingMenuWorkItem = nil
             lastMenuPressTime = 0
-            dismiss(animated: true)
-            reclaimPointerControl()
+            if presentedViewController != nil {
+                dismiss(animated: false)
+            } else {
+                noteChromeDismissed()
+            }
             return
         }
 
@@ -1188,17 +1225,18 @@ final class BrowserViewController: GCEventViewController {
     private func showURLInput() {
         guard presentedViewController == nil, !isPresentingChrome else { return }
         isPresentingChrome = true
+        clickpadCaptureView.allowsFocus = false
         NativeTextPrompt.presentAddressPrompt(
             from: self,
             initialText: viewModel.currentURL ?? "",
             onGo: { [weak self] text in
-                self?.finishChromePresentation()
+                self?.noteChromeDismissed()
                 self?.viewModel.load(rawInput: text)
                 self?.reclaimPointerControl()
             },
             onSearch: { [weak self] text in
                 guard let self else { return }
-                self.finishChromePresentation()
+                self.noteChromeDismissed()
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else {
                     self.reclaimPointerControl()
@@ -1208,7 +1246,7 @@ final class BrowserViewController: GCEventViewController {
                 self.reclaimPointerControl()
             },
             onCancel: { [weak self] in
-                self?.finishChromePresentation()
+                self?.noteChromeDismissed()
                 self?.reclaimPointerControl()
             }
         )

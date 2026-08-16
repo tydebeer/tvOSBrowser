@@ -105,6 +105,7 @@ final class SafariMenuViewController: DimmedMaterialSheetController {
     private weak var zoomStepperCell: SafariMenuZoomStepperCell?
     private weak var mouseSpeedStepperCell: SafariMenuZoomStepperCell?
     private weak var captionSizeStepperCell: SafariMenuZoomStepperCell?
+    private var didNotifyDismiss = false
 
     init(title: String, sections: [SafariMenuSection]) {
         self.sections = sections
@@ -123,6 +124,21 @@ final class SafariMenuViewController: DimmedMaterialSheetController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         updateTableHeight()
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if isBeingDismissed {
+            notifyDismissed()
+        }
+    }
+
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        if presses.contains(where: { $0.type == .menu }) {
+            close()
+            return
+        }
+        super.pressesBegan(presses, with: event)
     }
 
     func updateZoomPercent(_ percent: Int) {
@@ -180,6 +196,20 @@ final class SafariMenuViewController: DimmedMaterialSheetController {
         }
     }
 
+    func setExclusiveSelection(selectedTitle: String, titles: [String]) {
+        for title in titles {
+            setRowSelected(title: title, isOn: title == selectedTitle)
+        }
+    }
+
+    private static func symbol(forSelected isOn: Bool, current: String?) -> String? {
+        guard let current else { return nil }
+        if current == "checkmark.circle.fill" || current == "circle" {
+            return isOn ? "checkmark.circle.fill" : "circle"
+        }
+        return current
+    }
+
     private func setRowSelected(title: String, isOn: Bool) {
         for sectionIndex in sections.indices {
             for rowIndex in sections[sectionIndex].rows.indices {
@@ -188,7 +218,7 @@ final class SafariMenuViewController: DimmedMaterialSheetController {
                 sections[sectionIndex].rows[rowIndex] = SafariMenuRow(
                     title: row.title,
                     subtitle: row.subtitle,
-                    symbol: row.symbol,
+                    symbol: Self.symbol(forSelected: isOn, current: row.symbol),
                     style: isOn ? .selected : .normal,
                     dismissesOnSelect: false,
                     action: row.action
@@ -272,8 +302,14 @@ final class SafariMenuViewController: DimmedMaterialSheetController {
     private func close(completion: (() -> Void)? = nil) {
         dismissSheet {
             completion?()
-            self.onDismiss?()
+            self.notifyDismissed()
         }
+    }
+
+    private func notifyDismissed() {
+        guard !didNotifyDismiss else { return }
+        didNotifyDismiss = true
+        onDismiss?()
     }
 }
 

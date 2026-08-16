@@ -16,6 +16,8 @@ final class ClickpadCaptureView: UIView {
     /// Focused view receives remote arrows first; forward so the VC can handle them.
     var onDirectionalPressBegan: ((UIPress.PressType) -> Void)?
     var onDirectionalPressEnded: (() -> Void)?
+    /// Off while a sheet is up so arrows/focus stay in the menu.
+    var allowsFocus = true
 
     /// Set from Select press so callers know a button is held.
     var isClickHeld = false {
@@ -59,9 +61,13 @@ final class ClickpadCaptureView: UIView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
 
-    override var canBecomeFocused: Bool { true }
+    override var canBecomeFocused: Bool { allowsFocus }
 
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        guard allowsFocus else {
+            super.pressesBegan(presses, with: event)
+            return
+        }
         let arrows = presses.filter { isDirectionalPress($0.type) }
         if !arrows.isEmpty {
             for press in arrows {
@@ -73,6 +79,10 @@ final class ClickpadCaptureView: UIView {
     }
 
     override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        guard allowsFocus else {
+            super.pressesEnded(presses, with: event)
+            return
+        }
         if presses.contains(where: { isDirectionalPress($0.type) }) {
             onDirectionalPressEnded?()
             return
@@ -81,6 +91,10 @@ final class ClickpadCaptureView: UIView {
     }
 
     override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        guard allowsFocus else {
+            super.pressesCancelled(presses, with: event)
+            return
+        }
         if presses.contains(where: { isDirectionalPress($0.type) }) {
             onDirectionalPressEnded?()
             return
