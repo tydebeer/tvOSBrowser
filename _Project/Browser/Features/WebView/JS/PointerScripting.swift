@@ -726,6 +726,7 @@ extension JavaScriptExecutor {
 
     static var jsHitTestHelpers: String {
         let selector = clickableSelector
+        let smallControlMaxArea = Double(DSMetrics.pointerSmallControlMaxArea)
         return """
             window.__tvbIsMediaSurface = function(el) {
                 if (!el) return false;
@@ -752,7 +753,7 @@ extension JavaScriptExecutor {
                     if (clickable && !window.__tvbIsMediaSurface(clickable) && clickable !== media && !media.contains(clickable)) {
                         try {
                             var r = clickable.getBoundingClientRect();
-                            if (r.width * r.height < 20000) return top;
+                            if (r.width * r.height < \(smallControlMaxArea)) return top;
                         } catch (e2) {}
                     }
                     return media;
@@ -799,7 +800,7 @@ extension JavaScriptExecutor {
                 }
                 var best = sample(cx, cy);
                 if (best && best.lock) return best;
-                if (best && best.dist === 0 && best.area < 20000) return best;
+                if (best && best.dist === 0 && best.area < \(smallControlMaxArea)) return best;
                 var rad = Math.max(0, radius || 0);
                 for (var r = 4; r <= rad; r += 4) {
                     var steps = Math.max(8, Math.floor(r));

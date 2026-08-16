@@ -50,6 +50,8 @@ enum DSMetrics {
     static let menuMaxHeightMultiplier: CGFloat = 0.92
     /// Extra search radius (CSS px) when a click misses a tiny clickable control.
     static let pointerHitExpandRadius: CGFloat = hitTarget
+    /// Max CSS px² for a control to count as small: lock the hit instead of expanding onto a neighbor or iframe.
+    static let pointerSmallControlMaxArea: CGFloat = 20_000
     /// Ignore Bootstrap open/close while the user is actively scrolling.
     static let pointerScrollDropdownSuppress: TimeInterval = 0.4
     /// Fixed CSS viewport width so sites get a desktop layout under the desktop UA.
