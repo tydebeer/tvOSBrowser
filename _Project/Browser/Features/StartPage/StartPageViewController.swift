@@ -143,7 +143,7 @@ final class StartPageViewController: UIViewController {
     }
 
     private func setupCredit() {
-        creditLabel.text = "created by tydebeer"
+        creditLabel.text = "Created by tydebeer"
         creditLabel.font = DSTypography.footnote(weight: .medium)
         creditLabel.textColor = DSColor.labelTertiary
         creditLabel.textAlignment = .center
