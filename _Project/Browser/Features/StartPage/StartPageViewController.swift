@@ -27,6 +27,7 @@ final class StartPageViewController: UIViewController {
 
     func applyAppearance() {
         wallpaper.applyColors()
+        gridFactory.applyAppearance()
     }
 
     func reloadContent() {

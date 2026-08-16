@@ -126,13 +126,39 @@ enum DSColor {
     )
     static let webCanvas = dynamic(light: hex(0xFFFFFF), dark: hex(0x000000))
     static let startPageGradientTop = dynamic(
-        light: UIColor(red: 0.84, green: 0.91, blue: 1.0, alpha: 1),
-        dark: UIColor(red: 0.08, green: 0.10, blue: 0.16, alpha: 1)
+        light: UIColor(red: 0.78, green: 0.88, blue: 1.0, alpha: 1),
+        dark: UIColor(red: 0.10, green: 0.14, blue: 0.28, alpha: 1)
     )
     static let startPageGradientBottom = dynamic(
-        light: UIColor(red: 0.93, green: 0.95, blue: 1.0, alpha: 1),
-        dark: UIColor(red: 0.02, green: 0.02, blue: 0.04, alpha: 1)
+        light: UIColor(red: 0.93, green: 0.90, blue: 0.98, alpha: 1),
+        dark: UIColor(red: 0.04, green: 0.03, blue: 0.08, alpha: 1)
     )
+    static let startPageWash = dynamic(
+        light: UIColor(red: 0.65, green: 0.78, blue: 1.0, alpha: 0.35),
+        dark: UIColor(red: 0.18, green: 0.28, blue: 0.55, alpha: 0.40)
+    )
+
+    /// Distinct fills for start-page tiles. Same host keeps the same color.
+    static func startPageTileFill(for url: String) -> UIColor {
+        let key = URL(string: url)?.host?.lowercased() ?? url.lowercased()
+        let palette = startPageTilePalette
+        let hash = key.unicodeScalars.reduce(into: 0) { partial, scalar in
+            partial = partial &* 31 &+ Int(scalar.value)
+        }
+        let index = abs(hash) % palette.count
+        return palette[index]
+    }
+
+    private static let startPageTilePalette: [UIColor] = [
+        systemBlue,
+        systemGreen,
+        systemRed,
+        dynamic(light: hex(0xAF52DE), dark: hex(0xBF5AF2)),
+        dynamic(light: hex(0xFF9500), dark: hex(0xFF9F0A)),
+        dynamic(light: hex(0x32ADE6), dark: hex(0x64D2FF)),
+        dynamic(light: hex(0xFF2D55), dark: hex(0xFF375F)),
+        dynamic(light: hex(0x5856D6), dark: hex(0x5E5CE6)),
+    ]
 
     /// Resolves a dynamic color to `#RRGGBB` for the current (or given) trait collection.
     static func cssHex(_ color: UIColor, style: UIUserInterfaceStyle? = nil) -> String {

@@ -199,8 +199,12 @@ final class BrowserViewModel {
         }
     }
 
-    func inspectHoverCard(at point: CGPoint) async -> (title: String, youtube: [[String: Any]], favorite: [[String: Any]]) {
+    func inspectHoverCard(at point: CGPoint) async -> (title: String, summary: String, youtube: [[String: Any]], favorite: [[String: Any]]) {
         await webContainer.jsExecutor.inspectHoverCard(at: point)
+    }
+
+    func forceCardHover(at point: CGPoint) async {
+        await webContainer.jsExecutor.forceCardHover(at: point)
     }
 
     func activateCardAction(id: String) {

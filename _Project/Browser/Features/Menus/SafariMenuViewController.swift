@@ -622,6 +622,7 @@ private final class SafariMenuCell: UITableViewCell {
         titleLabel.text = row.title
         subtitleLabel.text = row.subtitle
         subtitleLabel.isHidden = row.subtitle == nil
+        titleLabel.numberOfLines = row.title.count > 60 ? 8 : 2
 
         if let symbol = row.symbol {
             let config = UIImage.SymbolConfiguration(pointSize: DSMetrics.chromeIconPointSize, weight: .medium)

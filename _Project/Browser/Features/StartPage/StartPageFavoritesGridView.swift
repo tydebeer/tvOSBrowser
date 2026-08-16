@@ -23,6 +23,10 @@ final class StartPageFavoritesGridView: UIView {
         tileViews.removeAll()
     }
 
+    func applyAppearance() {
+        tileViews.forEach { $0.applyAppearance() }
+    }
+
     private func makeTileGrid(items: [(String, String)], tileSize: CGFloat, columns: Int) -> UIView {
         let container = UIStackView()
         container.axis = .vertical
@@ -68,7 +72,10 @@ final class StartPageTileView: UIView {
     let url: String
     private let tileSize: CGFloat
     private let iconContainer = UIView()
+    private let hoverWash = UIView()
+    private let letterLabel = UILabel()
     private let titleLabel = UILabel()
+    private var fillColor: UIColor = DSColor.fillTertiary
 
     init(url: String, title: String, size: CGFloat) {
         self.url = url
@@ -79,20 +86,34 @@ final class StartPageTileView: UIView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
 
+    func applyAppearance() {
+        fillColor = DSColor.startPageTileFill(for: url)
+        iconContainer.backgroundColor = fillColor
+        letterLabel.textColor = DSColor.textOnAccent
+        titleLabel.textColor = DSColor.labelSecondary
+    }
+
     private func setup(title: String) {
         translatesAutoresizingMaskIntoConstraints = false
+        fillColor = DSColor.startPageTileFill(for: url)
 
-        iconContainer.backgroundColor = DSColor.fillTertiary
-        DSMetrics.continuousCorners(iconContainer, radius: tileSize * 0.22)
+        iconContainer.backgroundColor = fillColor
+        iconContainer.layer.cornerRadius = tileSize * 0.22
+        iconContainer.layer.cornerCurve = .continuous
+        iconContainer.clipsToBounds = false
         iconContainer.translatesAutoresizingMaskIntoConstraints = false
 
-        let letter = UILabel()
-        letter.text = String(title.prefix(1)).uppercased()
-        letter.font = DSTypography.title3()
-        letter.textColor = DSColor.label
-        letter.textAlignment = .center
-        letter.translatesAutoresizingMaskIntoConstraints = false
-        iconContainer.addSubview(letter)
+        hoverWash.backgroundColor = UIColor.white.withAlphaComponent(0.22)
+        hoverWash.isUserInteractionEnabled = false
+        hoverWash.alpha = 0
+        hoverWash.translatesAutoresizingMaskIntoConstraints = false
+        DSMetrics.continuousCorners(hoverWash, radius: tileSize * 0.22)
+
+        letterLabel.text = String(title.prefix(1)).uppercased()
+        letterLabel.font = DSTypography.title3()
+        letterLabel.textColor = DSColor.textOnAccent
+        letterLabel.textAlignment = .center
+        letterLabel.translatesAutoresizingMaskIntoConstraints = false
 
         titleLabel.text = title
         titleLabel.font = DSTypography.caption1()
@@ -101,6 +122,8 @@ final class StartPageTileView: UIView {
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
+        iconContainer.addSubview(hoverWash)
+        iconContainer.addSubview(letterLabel)
         addSubview(iconContainer)
         addSubview(titleLabel)
 
@@ -110,8 +133,12 @@ final class StartPageTileView: UIView {
             iconContainer.centerXAnchor.constraint(equalTo: centerXAnchor),
             iconContainer.widthAnchor.constraint(equalToConstant: tileSize),
             iconContainer.heightAnchor.constraint(equalToConstant: tileSize),
-            letter.centerXAnchor.constraint(equalTo: iconContainer.centerXAnchor),
-            letter.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
+            hoverWash.topAnchor.constraint(equalTo: iconContainer.topAnchor),
+            hoverWash.leadingAnchor.constraint(equalTo: iconContainer.leadingAnchor),
+            hoverWash.trailingAnchor.constraint(equalTo: iconContainer.trailingAnchor),
+            hoverWash.bottomAnchor.constraint(equalTo: iconContainer.bottomAnchor),
+            letterLabel.centerXAnchor.constraint(equalTo: iconContainer.centerXAnchor),
+            letterLabel.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
             titleLabel.topAnchor.constraint(equalTo: iconContainer.bottomAnchor, constant: DSMetrics.space3),
             titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
             titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -121,7 +148,7 @@ final class StartPageTileView: UIView {
 
     func setHovered(_ hovered: Bool) {
         UIView.animate(withDuration: DSMotion.durationFast) {
-            self.iconContainer.backgroundColor = hovered ? DSColor.sidebarSelected : DSColor.fillTertiary
+            self.hoverWash.alpha = hovered ? 1 : 0
             self.iconContainer.transform = hovered ? CGAffineTransform(scaleX: 1.06, y: 1.06) : .identity
             if hovered {
                 DSShadow.applyCardHover(to: self.iconContainer.layer)

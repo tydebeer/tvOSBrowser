@@ -3,14 +3,21 @@ import UIKit
 final class StartPageWallpaperView: UIView {
 
     private let gradient = CAGradientLayer()
+    private let wash = CAGradientLayer()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        clipsToBounds = true
         backgroundColor = DSColor.background
-        gradient.locations = [0, 0.4, 1]
-        gradient.startPoint = CGPoint(x: 0.2, y: 0)
-        gradient.endPoint = CGPoint(x: 0.8, y: 1)
+
+        gradient.startPoint = CGPoint(x: 0.05, y: 0)
+        gradient.endPoint = CGPoint(x: 0.9, y: 1)
         layer.insertSublayer(gradient, at: 0)
+
+        wash.startPoint = CGPoint(x: 1, y: 0)
+        wash.endPoint = CGPoint(x: 0.2, y: 0.7)
+        layer.insertSublayer(wash, above: gradient)
+
         applyColors()
     }
 
@@ -18,7 +25,8 @@ final class StartPageWallpaperView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        gradient.frame = CGRect(x: 0, y: 0, width: bounds.width, height: min(400, bounds.height))
+        gradient.frame = bounds
+        wash.frame = bounds
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -34,5 +42,11 @@ final class StartPageWallpaperView: UIView {
             DSColor.startPageGradientBottom.cgColor,
             DSColor.background.cgColor,
         ]
+        gradient.locations = [0, 0.45, 1]
+        wash.colors = [
+            DSColor.startPageWash.cgColor,
+            UIColor.clear.cgColor,
+        ]
+        wash.locations = [0, 1]
     }
 }

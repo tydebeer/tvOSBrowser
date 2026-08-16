@@ -137,7 +137,7 @@ extension JavaScriptExecutor {
         return isClickable
     }
 
-    func inspectHoverCard(at viewPoint: CGPoint) async -> (title: String, youtube: [[String: Any]], favorite: [[String: Any]]) {
+    func inspectHoverCard(at viewPoint: CGPoint) async -> (title: String, summary: String, youtube: [[String: Any]], favorite: [[String: Any]]) {
         let pageZoom = await currentPageZoom()
         let hitRadius = Double(DSMetrics.pointerHitExpandRadius)
         let js = """
@@ -148,18 +148,40 @@ extension JavaScriptExecutor {
             var resolved = window.__tvbResolveTargetAt(x, y, \(hitRadius));
             var el = resolved.el || resolved.target;
             if (el && window.__tvbApplyHoverAt) window.__tvbApplyHoverAt(el, x, y, 0);
+            if (el && window.__tvbApplyCardHover) window.__tvbApplyCardHover(el);
+            if (window.__tvbForceSiteHover) window.__tvbForceSiteHover(window.__tvbHoverCard || el);
             if (window.__tvbInspectHoverCard) return window.__tvbInspectHoverCard();
-            return { title: '', youtube: [], favorite: [] };
+            return { title: '', summary: '', youtube: [], favorite: [] };
         })()
         """
         let result = try? await evaluateJavaScript(js)
         guard let dict = Self.dictionaryValue(result) else {
-            return ("", [], [])
+            return ("", "", [], [])
         }
         let title = (dict["title"] as? String) ?? ""
+        let summary = (dict["summary"] as? String) ?? ""
         let youtube = Self.dictionaryArray(dict["youtube"])
         let favorite = Self.dictionaryArray(dict["favorite"])
-        return (title, youtube, favorite)
+        return (title, summary, youtube, favorite)
+    }
+
+    func forceCardHover(at viewPoint: CGPoint) async {
+        let pageZoom = await currentPageZoom()
+        let hitRadius = Double(DSMetrics.pointerHitExpandRadius)
+        let js = """
+        (function() {
+            \(Self.jsPointConversion(viewPoint, pageZoom: pageZoom))
+            if (!window.__tvbResolveTargetAt) { \(Self.jsHitTestHelpers) }
+            if (!window.__tvbForceSiteHover) { \(Self.jsHoverEmulationHelpers) }
+            var resolved = window.__tvbResolveTargetAt(x, y, \(hitRadius));
+            var el = resolved.el || resolved.target;
+            if (el && window.__tvbApplyHoverAt) window.__tvbApplyHoverAt(el, x, y, 0);
+            if (el && window.__tvbApplyCardHover) window.__tvbApplyCardHover(el);
+            if (window.__tvbForceSiteHover) window.__tvbForceSiteHover(window.__tvbHoverCard || el);
+            return true;
+        })()
+        """
+        _ = try? await evaluateJavaScript(js)
     }
 
     @discardableResult
@@ -1186,7 +1208,8 @@ extension JavaScriptExecutor {
                     var hint = (cls + ' ' + (node.id || '') + ' ' + (node.getAttribute && (node.getAttribute('data-testid') || ''))).toLowerCase();
                     var tag = (node.tagName || '').toUpperCase();
                     if (tag === 'ARTICLE') return node;
-                    if (/card|poster|tile|thumb|cover|title-card|titlecard/.test(hint)) return node;
+                    if (/card|poster|tile|thumb|cover|title-card|titlecard|movie|media|flip/.test(hint)) return node;
+                    if (tag === 'LI' && node.querySelector && node.querySelector('img')) return node;
                     node = node.parentElement;
                 }
                 return el || null;
@@ -1262,6 +1285,7 @@ extension JavaScriptExecutor {
                 var el = window.__tvbHoverLeaf;
                 if (!el) return false;
                 window.__tvbApplyCardHover(el);
+                window.__tvbForceSiteHover(window.__tvbHoverCard || el);
                 if (window.__tvbPinOverlay) window.__tvbPinOverlay(window.__tvbHoverCard || el);
                 return true;
             };
@@ -1284,7 +1308,87 @@ extension JavaScriptExecutor {
             window.__tvbLooksLikeFavoriteControl = function(n) {
                 if (!n) return false;
                 var hint = window.__tvbNodeHint(n);
-                return /favorite|favourite|watchlist|watch-list|bookmark|wishlist|add to list|my list|heart|star|save\\b/.test(hint);
+                var inner = '';
+                try { inner = (n.innerHTML || '').toLowerCase(); } catch (e) {}
+                if (/rated|rating|imdb|score/.test(hint) && !/heart|favorite|favourite/.test(hint + inner)) return false;
+                return /favorite|favourite|watchlist|watch-list|bookmark|wishlist|add to list|my list|fa-heart|heart-icon|icon-heart/.test(hint + ' ' + inner);
+            };
+            window.__tvbLooksLikeYouTubeControl = function(n) {
+                if (!n) return false;
+                var hint = window.__tvbNodeHint(n);
+                var inner = '';
+                try { inner = (n.innerHTML || '').toLowerCase(); } catch (e) {}
+                var blob = hint + ' ' + inner;
+                if (/watch\\s*now/.test(blob) && !/youtube|youtu\\.be|trailer/.test(blob)) return false;
+                return /youtube|youtu\\.be|fa-youtube|yt-icon|icon-youtube|trailer/.test(blob);
+            };
+            window.__tvbLooksLikeInfoControl = function(n) {
+                if (!n) return false;
+                var hint = window.__tvbNodeHint(n);
+                var inner = '';
+                try { inner = (n.innerHTML || '').toLowerCase(); } catch (e) {}
+                return /fa-info|info-circle|info-icon|icon-info|summary|synopsis|overview/.test(hint + ' ' + inner);
+            };
+            window.__tvbClosestControl = function(n) {
+                if (!n || !n.closest) return n;
+                return n.closest('a, button, [role="button"], [onclick], [tabindex]:not([tabindex="-1"])') || n;
+            };
+            window.__tvbForceSiteHover = function(card) {
+                if (!card) return;
+                var names = ['hover', 'hovered', 'is-hover', 'is-hovered', 'active', 'show', 'open', 'flipped', 'hovering'];
+                for (var i = 0; i < names.length; i++) {
+                    try { card.classList.add(names[i]); } catch (e) {}
+                }
+                try { card.classList.add(window.__tvbHoverClass); } catch (e2) {}
+                var x = 0, y = 0;
+                try {
+                    var r = card.getBoundingClientRect();
+                    x = r.left + r.width / 2;
+                    y = r.top + r.height / 2;
+                } catch (e3) {}
+                if (typeof PointerEvent === 'function') {
+                    window.__tvbFirePointerLike(card, 'pointerenter', PointerEvent, x, y, null, { pointerId: 1, pointerType: 'mouse', isPrimary: true, bubbles: false });
+                    window.__tvbFirePointerLike(card, 'pointerover', PointerEvent, x, y, null, { pointerId: 1, pointerType: 'mouse', isPrimary: true });
+                }
+                window.__tvbFirePointerLike(card, 'mouseenter', MouseEvent, x, y, null, {});
+                window.__tvbFirePointerLike(card, 'mouseover', MouseEvent, x, y, null, {});
+                var img = card.querySelector('img');
+                if (img) {
+                    window.__tvbFirePointerLike(img, 'mouseenter', MouseEvent, x, y, null, {});
+                    window.__tvbFirePointerLike(img, 'mouseover', MouseEvent, x, y, null, {});
+                }
+                var overlays = card.querySelectorAll('[class*="overlay"], [class*="Overlay"], [class*="hover"], [class*="Hover"], [class*="detail"], [class*="flip"], [class*="back"], [class*="action"]');
+                for (var o = 0; o < overlays.length; o++) {
+                    try {
+                        overlays[o].style.setProperty('display', 'flex', 'important');
+                        overlays[o].style.setProperty('opacity', '1', 'important');
+                        overlays[o].style.setProperty('visibility', 'visible', 'important');
+                        overlays[o].style.setProperty('pointer-events', 'auto', 'important');
+                    } catch (e4) {}
+                }
+            };
+            window.__tvbCardSummary = function(card, infoEl) {
+                var keys = ['data-overview', 'data-plot', 'data-description', 'data-summary', 'data-info', 'data-tooltip', 'data-content', 'title'];
+                var i, v;
+                for (i = 0; i < keys.length; i++) {
+                    v = (card.getAttribute && card.getAttribute(keys[i])) || '';
+                    if (v && v.trim().length > 12) return v.trim();
+                }
+                if (infoEl) {
+                    for (i = 0; i < keys.length; i++) {
+                        v = (infoEl.getAttribute && infoEl.getAttribute(keys[i])) || '';
+                        if (v && v.trim().length > 8) return v.trim();
+                    }
+                    v = (infoEl.getAttribute && (infoEl.getAttribute('aria-label') || infoEl.getAttribute('title'))) || '';
+                    if (v && v.trim().length > 12 && !/^info$/i.test(v.trim())) return v.trim();
+                }
+                var blocks = card.querySelectorAll('p, [class*="synopsis"], [class*="summary"], [class*="description"], [class*="overview"], [class*="plot"], [class*="bio"]');
+                var best = '';
+                for (i = 0; i < blocks.length; i++) {
+                    var t = (blocks[i].textContent || '').replace(/\\s+/g, ' ').trim();
+                    if (t.length > best.length && t.length > 20) best = t;
+                }
+                return best.slice(0, 600);
             };
             window.__tvbMarkCardAction = function(el, id) {
                 if (!el || !el.setAttribute) return;
@@ -1309,7 +1413,9 @@ extension JavaScriptExecutor {
                         hops++;
                     }
                 }
-                if (!card) return { title: '', youtube: [], favorite: [] };
+                if (!card) return { title: '', summary: '', youtube: [], favorite: [] };
+
+                window.__tvbForceSiteHover(card);
 
                 document.querySelectorAll('[data-tvb-card-act]').forEach(function(n) {
                     n.removeAttribute('data-tvb-card-act');
@@ -1328,7 +1434,9 @@ extension JavaScriptExecutor {
                 var favorite = [];
                 var seenHref = {};
                 var seenFavEl = [];
+                var seenYtEl = [];
                 var nextId = 1;
+                var infoEl = null;
 
                 function pushYoutube(el, href, label) {
                     var url = href || (el && ((el.getAttribute && el.getAttribute('href')) || el.href)) || '';
@@ -1340,21 +1448,24 @@ extension JavaScriptExecutor {
                             if (found) { url = found; break; }
                         }
                     }
-                    if (!url) return;
-                    var key = url.split('&')[0];
-                    if (seenHref[key]) return;
-                    seenHref[key] = 1;
+                    if (!url && !el) return;
+                    if (el && seenYtEl.indexOf(el) !== -1) return;
+                    var key = url ? url.split('&')[0] : '';
+                    if (key && seenHref[key]) return;
+                    if (key) seenHref[key] = 1;
+                    if (el) seenYtEl.push(el);
                     var id = 'yt' + nextId++;
                     if (el) window.__tvbMarkCardAction(el, id);
                     youtube.push({
                         id: id,
                         title: (label || 'YouTube').trim().slice(0, 80) || 'YouTube',
-                        href: url
+                        href: url || ''
                     });
                 }
 
                 function pushFavorite(el, label) {
                     if (!el) return;
+                    el = window.__tvbClosestControl(el) || el;
                     if (seenFavEl.indexOf(el) !== -1) return;
                     seenFavEl.push(el);
                     var id = 'fav' + nextId++;
@@ -1366,15 +1477,18 @@ extension JavaScriptExecutor {
                     });
                 }
 
-                var nodes = card.querySelectorAll('a, button, [role="button"], [onclick], iframe, [data-href], [data-url], [data-trailer], [data-youtube]');
+                var nodes = card.querySelectorAll('a, button, [role="button"], [onclick], iframe, i, svg, img, span, [data-href], [data-url], [data-trailer], [data-youtube], [class*="heart"], [class*="youtube"], [class*="yt"], [class*="info"]');
                 for (var i = 0; i < nodes.length; i++) {
                     var n = nodes[i];
-                    var href = ((n.getAttribute && (n.getAttribute('href') || n.getAttribute('src') || n.getAttribute('data-href') || n.getAttribute('data-url') || n.getAttribute('data-trailer') || n.getAttribute('data-youtube'))) || n.href || n.src || '');
-                    var label = ((n.getAttribute && (n.getAttribute('aria-label') || n.getAttribute('title'))) || (n.textContent || '')).trim();
-                    if (window.__tvbYoutubeURLInString(href) || /youtube|youtu\\.be|trailer/i.test(href + ' ' + label + ' ' + window.__tvbNodeHint(n))) {
-                        pushYoutube(n, href, label || 'YouTube');
-                    } else if (window.__tvbLooksLikeFavoriteControl(n)) {
-                        pushFavorite(n, label || 'Favorite');
+                    var control = window.__tvbClosestControl(n) || n;
+                    var href = ((control.getAttribute && (control.getAttribute('href') || control.getAttribute('src') || control.getAttribute('data-href') || control.getAttribute('data-url') || control.getAttribute('data-trailer') || control.getAttribute('data-youtube'))) || control.href || control.src || '');
+                    var label = ((control.getAttribute && (control.getAttribute('aria-label') || control.getAttribute('title'))) || (n.getAttribute && (n.getAttribute('aria-label') || n.getAttribute('title'))) || '').trim();
+                    if (window.__tvbLooksLikeYouTubeControl(n) || window.__tvbLooksLikeYouTubeControl(control) || window.__tvbYoutubeURLInString(href)) {
+                        pushYoutube(control, href, label || 'YouTube');
+                    } else if (window.__tvbLooksLikeFavoriteControl(n) || window.__tvbLooksLikeFavoriteControl(control)) {
+                        pushFavorite(control, label || 'Favorite');
+                    } else if (!infoEl && (window.__tvbLooksLikeInfoControl(n) || window.__tvbLooksLikeInfoControl(control))) {
+                        infoEl = control;
                     }
                 }
 
@@ -1391,7 +1505,8 @@ extension JavaScriptExecutor {
                     }
                 }
 
-                return { title: title, youtube: youtube, favorite: favorite };
+                var summary = window.__tvbCardSummary(card, infoEl);
+                return { title: title, summary: summary, youtube: youtube, favorite: favorite };
             };
             window.__tvbActivateCardAction = function(id) {
                 var el = document.querySelector('[data-tvb-card-act=\"' + String(id) + '\"]');

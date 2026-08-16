@@ -989,9 +989,12 @@ final class BrowserViewController: GCEventViewController {
         let point = pointer.position
         Task { @MainActor [weak self] in
             guard let self else { return }
+            await self.viewModel.forceCardHover(at: point)
+            try? await Task.sleep(nanoseconds: UInt64(DSMetrics.pointerClickDebounce * 1_000_000_000))
             let snap = await self.viewModel.inspectHoverCard(at: point)
             self.presentCardPeekActions(
                 title: snap.title,
+                summary: snap.summary,
                 youtube: snap.youtube,
                 favorite: snap.favorite
             )
@@ -1000,6 +1003,7 @@ final class BrowserViewController: GCEventViewController {
 
     private func presentCardPeekActions(
         title: String,
+        summary: String,
         youtube: [[String: Any]],
         favorite: [[String: Any]]
     ) {
@@ -1057,12 +1061,23 @@ final class BrowserViewController: GCEventViewController {
         }
 
         let heading = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let blurb = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        var sections: [SafariMenuSection] = []
+        if !blurb.isEmpty {
+            sections.append(SafariMenuSection(title: "Summary", rows: [
+                SafariMenuRow(
+                    title: blurb,
+                    symbol: "info.circle",
+                    dismissesOnSelect: false
+                )
+            ]))
+        }
+        sections.append(SafariMenuSection(title: "YouTube", rows: youtubeRows))
+        sections.append(SafariMenuSection(title: "Favorite", rows: favoriteRows))
+
         let menu = SafariMenuViewController(
             title: heading.isEmpty ? "Card" : heading,
-            sections: [
-                SafariMenuSection(title: "YouTube", rows: youtubeRows),
-                SafariMenuSection(title: "Favorite", rows: favoriteRows),
-            ]
+            sections: sections
         )
         menu.onDismiss = { [weak self] in
             self?.reclaimPointerControl()
