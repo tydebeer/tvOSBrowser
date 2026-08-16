@@ -13,6 +13,9 @@ final class ClickpadCaptureView: UIView {
     var onMoved: ((CGFloat, CGFloat) -> Void)?
     var onTapped: (() -> Void)?
     var onScrolled: ((CGFloat, CGFloat) -> Void)?
+    /// Focused view receives remote arrows first; forward so the VC can handle them.
+    var onDirectionalPressBegan: ((UIPress.PressType) -> Void)?
+    var onDirectionalPressEnded: (() -> Void)?
 
     /// Set from Select press so callers know a button is held.
     var isClickHeld = false {
@@ -57,6 +60,40 @@ final class ClickpadCaptureView: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
 
     override var canBecomeFocused: Bool { true }
+
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        let arrows = presses.filter { isDirectionalPress($0.type) }
+        if !arrows.isEmpty {
+            for press in arrows {
+                onDirectionalPressBegan?(press.type)
+            }
+            return
+        }
+        super.pressesBegan(presses, with: event)
+    }
+
+    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        if presses.contains(where: { isDirectionalPress($0.type) }) {
+            onDirectionalPressEnded?()
+            return
+        }
+        super.pressesEnded(presses, with: event)
+    }
+
+    override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        if presses.contains(where: { isDirectionalPress($0.type) }) {
+            onDirectionalPressEnded?()
+            return
+        }
+        super.pressesCancelled(presses, with: event)
+    }
+
+    private func isDirectionalPress(_ type: UIPress.PressType) -> Bool {
+        switch type {
+        case .upArrow, .downArrow, .leftArrow, .rightArrow: return true
+        default: return false
+        }
+    }
 
     func beginClickHold() {
         isClickHeld = true

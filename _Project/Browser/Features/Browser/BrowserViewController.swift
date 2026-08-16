@@ -247,6 +247,12 @@ final class BrowserViewController: GCEventViewController {
                 self.scrollWebViewBy(dx: dx, dy: dy)
             }
         }
+        clickpadCaptureView.onDirectionalPressBegan = { [weak self] type in
+            self?.handleDirectionalPressBegan(type)
+        }
+        clickpadCaptureView.onDirectionalPressEnded = { [weak self] in
+            self?.pointer.endDirectionalPress()
+        }
     }
 
     private func setupPointer() {
@@ -373,29 +379,30 @@ final class BrowserViewController: GCEventViewController {
             return
         }
 
-        guard presentedViewController == nil,
-              let press = presses.first,
-              isDirectionalPress(press.type) else {
+        let arrows = presses.filter { isDirectionalPress($0.type) }
+        guard presentedViewController == nil, !arrows.isEmpty else {
             super.pressesBegan(presses, with: event)
             return
         }
 
-        reclaimPointerControl()
+        for press in arrows {
+            handleDirectionalPressBegan(press.type)
+        }
+    }
 
-        if isSiteVideoFullscreen, press.type == .leftArrow || press.type == .rightArrow {
-            let delta = press.type == .leftArrow
+    private func handleDirectionalPressBegan(_ type: UIPress.PressType) {
+        guard presentedViewController == nil, isDirectionalPress(type) else { return }
+
+        if isSiteVideoFullscreen, type == .leftArrow || type == .rightArrow {
+            let delta = type == .leftArrow
                 ? -DSMetrics.videoFullscreenSeekSeconds
                 : DSMetrics.videoFullscreenSeekSeconds
             noteCursorActivity()
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                guard await self.ensureVideoFullscreenStillActive() else { return }
-                self.viewModel.seekFullscreenVideo(by: delta)
-            }
+            viewModel.seekFullscreenVideo(by: delta)
             return
         }
 
-        if isSiteVideoFullscreen, press.type == .upArrow {
+        if isSiteVideoFullscreen, type == .upArrow {
             noteCursorActivity()
             showVideoSettings()
             return
@@ -404,7 +411,7 @@ final class BrowserViewController: GCEventViewController {
         guard !SettingsManager.shared.usesTrackpadPointer else { return }
 
         noteCursorActivity()
-        pointer.beginDirectionalPress(press.type)
+        pointer.beginDirectionalPress(type)
     }
 
     override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
@@ -740,17 +747,6 @@ final class BrowserViewController: GCEventViewController {
     }
 
     /// Clears chrome FS state if the page no longer has an active FS video.
-    @discardableResult
-    private func ensureVideoFullscreenStillActive() async -> Bool {
-        guard isSiteVideoFullscreen else { return false }
-        let active = await viewModel.isVideoFullscreenActive()
-        if !active {
-            exitSiteVideoFullscreen()
-            return false
-        }
-        return true
-    }
-
     private func exitSiteVideoFullscreen() {
         guard isSiteVideoFullscreen else {
             viewModel.exitVideoFullscreen()
@@ -786,11 +782,10 @@ final class BrowserViewController: GCEventViewController {
 
     private func showVideoSettings() {
         guard isSiteVideoFullscreen, presentedViewController == nil, !isPresentingChrome else { return }
+        applyCaptionStyle()
         Task { @MainActor [weak self] in
-            guard let self, self.presentedViewController == nil, !self.isPresentingChrome else { return }
-            if self.isSiteVideoFullscreen {
-                guard await self.ensureVideoFullscreenStillActive() else { return }
-            }
+            guard let self else { return }
+            guard self.isSiteVideoFullscreen, self.presentedViewController == nil, !self.isPresentingChrome else { return }
             let snap = await self.viewModel.videoSettingsSnapshot()
             self.presentVideoSettings(
                 tracks: snap.tracks,
