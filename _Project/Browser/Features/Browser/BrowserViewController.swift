@@ -1020,10 +1020,10 @@ final class BrowserViewController: GCEventViewController {
                 subtitle: href.isEmpty ? nil : href,
                 symbol: "play.rectangle.fill",
                 action: { [weak self] in
-                    if !href.isEmpty {
-                        self?.viewModel.load(rawInput: href)
-                    } else if !id.isEmpty {
+                    if !id.isEmpty {
                         self?.viewModel.activateCardAction(id: id)
+                    } else if !href.isEmpty {
+                        self?.viewModel.load(rawInput: href)
                     }
                 }
             ))
@@ -1107,6 +1107,9 @@ final class BrowserViewController: GCEventViewController {
             pendingMenuWorkItem = nil
             lastMenuPressTime = 0
             exitSiteVideoFullscreen()
+            Task { @MainActor [weak self] in
+                _ = await self?.viewModel.dismissSiteOverlay()
+            }
             return
         }
 
@@ -1121,6 +1124,14 @@ final class BrowserViewController: GCEventViewController {
 
         lastMenuPressTime = now
         pendingMenuWorkItem?.cancel()
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if await self.viewModel.dismissSiteOverlay() {
+                self.pendingMenuWorkItem?.cancel()
+                self.pendingMenuWorkItem = nil
+                self.lastMenuPressTime = 0
+            }
+        }
         let work = DispatchWorkItem { [weak self] in
             self?.pendingMenuWorkItem = nil
             self?.lastMenuPressTime = 0

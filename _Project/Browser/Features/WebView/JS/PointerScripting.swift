@@ -199,6 +199,19 @@ extension JavaScriptExecutor {
         return Self.boolValue(result)
     }
 
+    /// Close an in-page YouTube trailer / lightbox if one is showing. Does not navigate.
+    @discardableResult
+    func dismissSiteOverlay() async -> Bool {
+        let js = """
+        (function() {
+            \(Self.jsDismissSiteOverlay)
+            return window.__tvbDismissSiteOverlay();
+        })()
+        """
+        let result = try? await evaluateJavaScriptAsUserGesture(js)
+        return Self.boolValue(result)
+    }
+
     func pinHoverPeek() async {
         let js = """
         (function() {
@@ -1031,6 +1044,131 @@ extension JavaScriptExecutor {
                     var toggle = dd.querySelector('a.nav-link, a[role="button"], [data-toggle="dropdown"]');
                     if (toggle) toggle.setAttribute('aria-expanded', 'false');
                 });
+            };
+    """
+
+    static let jsDismissSiteOverlay = """
+            window.__tvbDismissSiteOverlay = function() {
+                function visible(el) {
+                    if (!el || !el.getBoundingClientRect) return false;
+                    var r = el.getBoundingClientRect();
+                    if (r.width < 40 || r.height < 40) return false;
+                    var cs;
+                    try { cs = window.getComputedStyle(el); } catch (e) { return false; }
+                    if (!cs || cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0) return false;
+                    var vw = window.innerWidth || document.documentElement.clientWidth || 0;
+                    var vh = window.innerHeight || document.documentElement.clientHeight || 0;
+                    return r.bottom > 0 && r.right > 0 && r.top < vh && r.left < vw;
+                }
+                function blob(el) {
+                    if (!el) return '';
+                    var cls = (el.className && el.className.baseVal !== undefined)
+                        ? String(el.className.baseVal)
+                        : String(el.className || '');
+                    return (cls + ' ' + (el.id || '') + ' ' +
+                        ((el.getAttribute && (el.getAttribute('role') || el.getAttribute('aria-label') || '')) || '')
+                    ).toLowerCase();
+                }
+                function isYouTubeSrc(s) {
+                    s = String(s || '').toLowerCase();
+                    return s.indexOf('youtube.com') !== -1 || s.indexOf('youtube-nocookie.com') !== -1 || s.indexOf('youtu.be') !== -1;
+                }
+                function mediaSrc(el) {
+                    return ((el.getAttribute && (el.getAttribute('src') || el.getAttribute('data-src') || el.getAttribute('data-url'))) || el.src || '');
+                }
+                function stopFrame(iframe) {
+                    if (!iframe) return;
+                    try {
+                        iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+                        iframe.contentWindow.postMessage('{"event":"command","func":"stopVideo","args":""}', '*');
+                    } catch (e) {}
+                    try { iframe.src = 'about:blank'; } catch (e2) {}
+                }
+                function fireEscape(target) {
+                    var opts = { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true, cancelable: true };
+                    try { target.dispatchEvent(new KeyboardEvent('keydown', opts)); } catch (e) {}
+                    try { target.dispatchEvent(new KeyboardEvent('keyup', opts)); } catch (e2) {}
+                }
+                function clickClose(root) {
+                    if (!root || !root.querySelectorAll) return false;
+                    var nodes = root.querySelectorAll('button, a, [role="button"], [data-dismiss], [data-bs-dismiss], .close, .btn-close');
+                    for (var i = 0; i < nodes.length; i++) {
+                        var n = nodes[i];
+                        var h = blob(n) + ' ' + ((n.textContent || '').slice(0, 24).toLowerCase());
+                        if (/close|dismiss|btn-close|fancybox-close|mfp-close|modal-close/.test(h) ||
+                            (n.getAttribute && (n.getAttribute('data-dismiss') === 'modal' || n.getAttribute('data-bs-dismiss') === 'modal'))) {
+                            try { n.click(); return true; } catch (e) {}
+                        }
+                    }
+                    return false;
+                }
+
+                var frames = document.querySelectorAll('iframe, embed, object');
+                var yt = [];
+                for (var i = 0; i < frames.length; i++) {
+                    if (isYouTubeSrc(mediaSrc(frames[i])) && visible(frames[i])) yt.push(frames[i]);
+                }
+                if (yt.length === 0) return false;
+
+                var overlay = null;
+                var node = yt[0];
+                while (node && node !== document.body && node !== document.documentElement) {
+                    var h = blob(node);
+                    var pos = '';
+                    try { pos = window.getComputedStyle(node).position; } catch (e3) {}
+                    if (/modal|lightbox|fancybox|mfp-|popup|dialog|overlay|player-modal|yt-modal/.test(h) ||
+                        (node.getAttribute && node.getAttribute('role') === 'dialog')) {
+                        overlay = node;
+                        break;
+                    }
+                    if (pos === 'fixed' || pos === 'absolute') {
+                        var r = node.getBoundingClientRect();
+                        var vh = window.innerHeight || 0;
+                        var vw = window.innerWidth || 0;
+                        if (r.width > vw * 0.35 && r.height > vh * 0.35) {
+                            overlay = node;
+                            break;
+                        }
+                    }
+                    node = node.parentElement;
+                }
+                if (!overlay) overlay = yt[0];
+
+                try {
+                    if (window.jQuery) {
+                        if (window.jQuery.fancybox) window.jQuery.fancybox.close();
+                        if (window.jQuery.magnificPopup) window.jQuery.magnificPopup.close();
+                        if (window.jQuery.fn && window.jQuery.fn.modal) {
+                            window.jQuery('.modal.show, .modal.in').modal('hide');
+                        }
+                    }
+                    if (window.Fancybox && window.Fancybox.close) window.Fancybox.close();
+                } catch (e4) {}
+
+                clickClose(overlay);
+                fireEscape(overlay);
+                fireEscape(document);
+                for (var j = 0; j < yt.length; j++) stopFrame(yt[j]);
+
+                try {
+                    overlay.classList.remove('show', 'in', 'open', 'active', 'visible');
+                    overlay.style.setProperty('display', 'none', 'important');
+                    overlay.setAttribute('aria-hidden', 'true');
+                } catch (e5) {}
+
+                var backs = document.querySelectorAll('.modal-backdrop, .fancybox-container, .fancybox-overlay, .mfp-bg, .mfp-wrap');
+                for (var b = 0; b < backs.length; b++) {
+                    try {
+                        backs[b].classList.remove('show', 'in', 'open');
+                        backs[b].style.setProperty('display', 'none', 'important');
+                    } catch (e6) {}
+                }
+                try {
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.documentElement.style.overflow = '';
+                } catch (e7) {}
+                return true;
             };
     """
 
