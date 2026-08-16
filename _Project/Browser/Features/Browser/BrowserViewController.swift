@@ -152,6 +152,7 @@ final class BrowserViewController: GCEventViewController {
         }
         browserMenu.onGoForward = { [weak self] in self?.viewModel.goForward() }
         browserMenu.onURLInput = { [weak self] in self?.showURLInput() }
+        browserMenu.onSearch = { [weak self] in self?.showSearch() }
         browserMenu.onReload = { [weak self] in self?.viewModel.reload() }
         browserMenu.onGoStartPage = { [weak self] in self?.viewModel.showStartPage() }
         browserMenu.onLoadHomepage = { [weak self] in self?.viewModel.loadHomepage() }
@@ -746,12 +747,15 @@ final class BrowserViewController: GCEventViewController {
     }
 
     private func noteChromeDismissed() {
+        ignoreMenuUntil = ProcessInfo.processInfo.systemUptime + DSMetrics.menuDoublePressInterval
+        if presentedViewController != nil {
+            isPresentingChrome = true
+            clickpadCaptureView.allowsFocus = false
+            return
+        }
         isPresentingChrome = false
         clickpadCaptureView.allowsFocus = true
-        ignoreMenuUntil = ProcessInfo.processInfo.systemUptime + DSMetrics.menuDoublePressInterval
-        if presentedViewController == nil {
-            reclaimPointerControl()
-        }
+        reclaimPointerControl()
     }
 
     override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
@@ -1349,33 +1353,73 @@ final class BrowserViewController: GCEventViewController {
     }
 
     private func showURLInput() {
-        guard presentedViewController == nil, !isPresentingChrome else { return }
-        isPresentingChrome = true
-        clickpadCaptureView.allowsFocus = false
-        NativeTextPrompt.presentAddressPrompt(
-            from: self,
-            initialText: viewModel.currentURL ?? "",
-            onGo: { [weak self] text in
-                self?.noteChromeDismissed()
-                self?.viewModel.load(rawInput: text)
-                self?.reclaimPointerControl()
-            },
-            onSearch: { [weak self] text in
-                guard let self else { return }
-                self.noteChromeDismissed()
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else {
+        presentPromptAfterMenu { [weak self] in
+            guard let self else { return }
+            NativeTextPrompt.presentAddressPrompt(
+                from: self,
+                initialText: self.viewModel.currentURL ?? "",
+                onGo: { [weak self] text in
+                    self?.noteChromeDismissed()
+                    self?.viewModel.load(rawInput: text)
+                    self?.reclaimPointerControl()
+                },
+                onSearch: { [weak self] text in
+                    guard let self else { return }
+                    self.noteChromeDismissed()
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else {
+                        self.reclaimPointerControl()
+                        return
+                    }
+                    self.viewModel.load(rawInput: self.viewModel.searchURL(forQuery: trimmed))
                     self.reclaimPointerControl()
-                    return
+                },
+                onCancel: { [weak self] in
+                    self?.noteChromeDismissed()
+                    self?.reclaimPointerControl()
                 }
-                self.viewModel.load(rawInput: self.viewModel.searchURL(forQuery: trimmed))
-                self.reclaimPointerControl()
-            },
-            onCancel: { [weak self] in
-                self?.noteChromeDismissed()
-                self?.reclaimPointerControl()
-            }
-        )
+            )
+        }
+    }
+
+    private func showSearch() {
+        presentPromptAfterMenu { [weak self] in
+            guard let self else { return }
+            NativeTextPrompt.presentSearchPrompt(
+                from: self,
+                onSearch: { [weak self] text in
+                    guard let self else { return }
+                    self.noteChromeDismissed()
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else {
+                        self.reclaimPointerControl()
+                        return
+                    }
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        let usedSite = await self.viewModel.submitSiteSearch(trimmed)
+                        if !usedSite {
+                            self.viewModel.load(rawInput: self.viewModel.searchURL(forQuery: trimmed))
+                        }
+                        self.reclaimPointerControl()
+                    }
+                },
+                onCancel: { [weak self] in
+                    self?.noteChromeDismissed()
+                    self?.reclaimPointerControl()
+                }
+            )
+        }
+    }
+
+    /// Wait out the Menu row's Select press so it cannot tap Search/Go on the prompt.
+    private func presentPromptAfterMenu(_ present: @escaping () -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + DSMetrics.pointerClickDebounce) { [weak self] in
+            guard let self, self.presentedViewController == nil else { return }
+            self.isPresentingChrome = true
+            self.clickpadCaptureView.allowsFocus = false
+            present()
+        }
     }
 
     private func showLoadError(_ error: Error, requestURL: String?) {

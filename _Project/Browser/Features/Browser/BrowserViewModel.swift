@@ -217,6 +217,10 @@ final class BrowserViewModel {
         await webContainer.jsExecutor.dismissSiteOverlay()
     }
 
+    func submitSiteSearch(_ query: String) async -> Bool {
+        await webContainer.jsExecutor.submitSiteSearch(query)
+    }
+
     func handlePointerClick(at screenPoint: CGPoint) {
         guard screenPoint.y >= 0 else { return }
         inputTask?.cancel()

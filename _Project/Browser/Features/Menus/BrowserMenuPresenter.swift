@@ -11,6 +11,7 @@ final class BrowserMenuPresenter {
 
     var onGoForward: (() -> Void)?
     var onURLInput: (() -> Void)?
+    var onSearch: (() -> Void)?
     var onReload: (() -> Void)?
     var onGoStartPage: (() -> Void)?
     var onLoadHomepage: (() -> Void)?
@@ -70,8 +71,13 @@ final class BrowserMenuPresenter {
             }))
         }
         navRows.append(SafariMenuRow(
-            title: "Search or Enter Website Name",
+            title: "Search",
             symbol: "magnifyingglass",
+            action: { [weak self] in self?.onSearch?() }
+        ))
+        navRows.append(SafariMenuRow(
+            title: "Search or Enter Website Name",
+            symbol: "globe",
             action: { [weak self] in self?.onURLInput?() }
         ))
         if hasPage {

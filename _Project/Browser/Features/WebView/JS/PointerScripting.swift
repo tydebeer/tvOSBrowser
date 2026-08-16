@@ -212,6 +212,33 @@ extension JavaScriptExecutor {
         return Self.boolValue(result)
     }
 
+    /// Fill the current page's search field when one exists (opens the site search toggle first if needed).
+    @discardableResult
+    func submitSiteSearch(_ query: String) async -> Bool {
+        let escaped = query
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: "")
+        let js = """
+        (function() {
+            \(Self.jsSubmitSiteSearch)
+            return window.__tvbSubmitSiteSearch("\(escaped)");
+        })()
+        """
+        if Self.boolValue(try? await evaluateJavaScriptAsUserGesture(js)) {
+            return true
+        }
+        try? await Task.sleep(nanoseconds: UInt64(DSMetrics.pointerClickDebounce * 1_000_000_000))
+        let retry = """
+        (function() {
+            \(Self.jsSubmitSiteSearch)
+            return window.__tvbFillSearchInput("\(escaped)");
+        })()
+        """
+        return Self.boolValue(try? await evaluateJavaScriptAsUserGesture(retry))
+    }
+
     func pinHoverPeek() async {
         let js = """
         (function() {
@@ -1169,6 +1196,99 @@ extension JavaScriptExecutor {
                     document.documentElement.style.overflow = '';
                 } catch (e7) {}
                 return true;
+            };
+    """
+
+    static let jsSubmitSiteSearch = """
+            window.__tvbFindSearchInput = function() {
+                function isVisible(el) {
+                    if (!el) return false;
+                    var cs;
+                    try { cs = window.getComputedStyle(el); } catch (e) { return false; }
+                    if (!cs || cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0) return false;
+                    var r = el.getBoundingClientRect();
+                    return r.width > 8 && r.height > 8;
+                }
+                function hint(el) {
+                    if (!el) return '';
+                    return (
+                        (el.getAttribute && (el.getAttribute('type') || el.type || '')) + ' ' +
+                        (el.getAttribute && (el.getAttribute('name') || el.id || el.getAttribute('placeholder') || el.getAttribute('aria-label') || '')) + ' ' +
+                        String(el.className || '') + ' ' +
+                        ((el.form && el.form.className) ? String(el.form.className) : '')
+                    ).toLowerCase();
+                }
+                function looksLikeSearch(el) {
+                    var h = hint(el);
+                    var type = ((el.getAttribute && el.getAttribute('type')) || el.type || '').toLowerCase();
+                    if (type === 'hidden' || type === 'password' || type === 'checkbox' || type === 'radio' || type === 'submit' || type === 'button') return false;
+                    if (type === 'search') return true;
+                    return /search|query|keyword|\\bq\\b|^s$/.test(h);
+                }
+                var nodes = document.querySelectorAll('input, textarea');
+                var i, el;
+                for (i = 0; i < nodes.length; i++) {
+                    el = nodes[i];
+                    if (looksLikeSearch(el) && isVisible(el)) return el;
+                }
+                var forms = document.querySelectorAll('form[role="search"], form[action*="search"], .search-form, [class*="search"] form');
+                for (i = 0; i < forms.length; i++) {
+                    el = forms[i].querySelector('input:not([type="hidden"]):not([type="submit"]):not([type="button"])');
+                    if (el && isVisible(el)) return el;
+                }
+                return null;
+            };
+            window.__tvbFillSearchInput = function(query) {
+                var input = window.__tvbFindSearchInput();
+                if (!input) return false;
+                try { input.focus(); } catch (e) {}
+                try {
+                    var proto = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
+                        || Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value');
+                    if (proto && proto.set) proto.set.call(input, query);
+                    else input.value = query;
+                } catch (e2) { input.value = query; }
+                try { input.dispatchEvent(new Event('input', { bubbles: true })); } catch (e3) {}
+                try { input.dispatchEvent(new Event('change', { bubbles: true })); } catch (e4) {}
+                var form = input.form || (input.closest && input.closest('form'));
+                if (form) {
+                    try {
+                        if (typeof form.requestSubmit === 'function') form.requestSubmit();
+                        else form.submit();
+                        return true;
+                    } catch (e5) {}
+                }
+                try {
+                    var opts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+                    input.dispatchEvent(new KeyboardEvent('keydown', opts));
+                    input.dispatchEvent(new KeyboardEvent('keyup', opts));
+                } catch (e6) {}
+                return true;
+            };
+            window.__tvbOpenSearchToggle = function() {
+                var nodes = document.querySelectorAll(
+                    'a[href="#search"], .search-toggle, [aria-label*="Search"], [aria-label*="search"],' +
+                    ' [title*="Search"], [title*="search"], .fa-search, .fa-magnifying-glass,' +
+                    ' i[class*="search"], button[class*="search"], a[class*="search"]'
+                );
+                var clicked = false;
+                for (var i = 0; i < nodes.length; i++) {
+                    var n = nodes[i];
+                    var h = (
+                        ((n.getAttribute && (n.getAttribute('aria-label') || n.getAttribute('title') || '')) || '') + ' ' +
+                        String(n.className || '')
+                    ).toLowerCase();
+                    if (!/search|magnif/.test(h) && !(n.getAttribute && n.getAttribute('href') === '#search')) continue;
+                    try { n.click(); clicked = true; } catch (e) {}
+                }
+                return clicked;
+            };
+            window.__tvbSubmitSiteSearch = function(query) {
+                query = String(query || '');
+                if (!query) return false;
+                if (window.__tvbFillSearchInput(query)) return true;
+                window.__tvbOpenSearchToggle();
+                return window.__tvbFillSearchInput(query);
             };
     """
 

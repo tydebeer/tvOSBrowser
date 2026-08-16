@@ -43,4 +43,37 @@ enum NativeTextPrompt {
 
         presenter.present(alert, animated: true)
     }
+
+    /// Empty search field. Search is the default button.
+    static func presentSearchPrompt(
+        from presenter: UIViewController,
+        title: String = "Search",
+        onSearch: @escaping (String) -> Void,
+        onCancel: (() -> Void)? = nil
+    ) {
+        let alert = UIAlertController(title: title, message: nil, preferredStyle: .alert)
+        alert.addTextField { field in
+            field.placeholder = "Search"
+            field.keyboardType = .webSearch
+            field.textContentType = nil
+            field.autocapitalizationType = .none
+            field.autocorrectionType = .yes
+            field.spellCheckingType = .no
+            field.returnKeyType = .search
+            field.clearButtonMode = .whileEditing
+        }
+
+        let search = UIAlertAction(title: "Search", style: .default) { [weak alert] _ in
+            let raw = alert?.textFields?.first?.text ?? ""
+            onSearch(VoiceInputSanitizer.sanitize(raw))
+        }
+        let cancel = UIAlertAction(title: "Cancel", style: .cancel) { _ in
+            onCancel?()
+        }
+
+        alert.addAction(search)
+        alert.addAction(cancel)
+
+        presenter.present(alert, animated: true)
+    }
 }
