@@ -83,6 +83,8 @@ enum DSMetrics {
     static let videoFullscreenSeekSeconds: Double = 10
     /// Select taps closer than this are treated as one click, or a video double-click.
     static let pointerClickDebounce: TimeInterval = 0.35
+    /// Hold Select this long without dragging to peek card hover (Watch / YouTube) instead of navigating.
+    static let pointerPeekHold: TimeInterval = 0.5
     static let videoPlaybackRates: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
     static let captionSizeDefault: CGFloat = 1.0
     static let captionSizeMin: CGFloat = 0.75

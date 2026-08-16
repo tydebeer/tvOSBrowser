@@ -137,6 +137,57 @@ extension JavaScriptExecutor {
         return isClickable
     }
 
+    func inspectHoverCard(at viewPoint: CGPoint) async -> (title: String, youtube: [[String: Any]], favorite: [[String: Any]]) {
+        let pageZoom = await currentPageZoom()
+        let hitRadius = Double(DSMetrics.pointerHitExpandRadius)
+        let js = """
+        (function() {
+            \(Self.jsPointConversion(viewPoint, pageZoom: pageZoom))
+            if (!window.__tvbResolveTargetAt) { \(Self.jsHitTestHelpers) }
+            if (!window.__tvbInspectHoverCard) { \(Self.jsHoverEmulationHelpers) }
+            var resolved = window.__tvbResolveTargetAt(x, y, \(hitRadius));
+            var el = resolved.el || resolved.target;
+            if (el && window.__tvbApplyHoverAt) window.__tvbApplyHoverAt(el, x, y, 0);
+            if (window.__tvbInspectHoverCard) return window.__tvbInspectHoverCard();
+            return { title: '', youtube: [], favorite: [] };
+        })()
+        """
+        let result = try? await evaluateJavaScript(js)
+        guard let dict = Self.dictionaryValue(result) else {
+            return ("", [], [])
+        }
+        let title = (dict["title"] as? String) ?? ""
+        let youtube = Self.dictionaryArray(dict["youtube"])
+        let favorite = Self.dictionaryArray(dict["favorite"])
+        return (title, youtube, favorite)
+    }
+
+    @discardableResult
+    func activateCardAction(id: String) async -> Bool {
+        let escaped = id.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let js = """
+        (function() {
+            if (!window.__tvbActivateCardAction) { \(Self.jsHoverEmulationHelpers) }
+            if (window.__tvbActivateCardAction) return window.__tvbActivateCardAction("\(escaped)");
+            return false;
+        })()
+        """
+        let result = try? await evaluateJavaScriptAsUserGesture(js)
+        return Self.boolValue(result)
+    }
+
+    func pinHoverPeek() async {
+        let js = """
+        (function() {
+            if (!window.__tvbPinHoverPeek) { \(Self.jsHoverEmulationHelpers) }
+            if (window.__tvbPinHoverPeek) return window.__tvbPinHoverPeek();
+            return false;
+        })()
+        """
+        _ = try? await evaluateJavaScript(js)
+    }
+
     func pointerDown(at viewPoint: CGPoint) async {
         setPointerButtons(1)
         let pageZoom = await currentPageZoom()
@@ -1126,6 +1177,229 @@ extension JavaScriptExecutor {
                     try { chain[i].classList.add(window.__tvbHoverClass); } catch (e) {}
                 }
             };
+            window.__tvbFindHoverCard = function(el) {
+                var node = el;
+                while (node && node.nodeType === 1 && node !== document.body && node !== document.documentElement) {
+                    var cls = (node.className && node.className.baseVal !== undefined)
+                        ? String(node.className.baseVal)
+                        : String(node.className || '');
+                    var hint = (cls + ' ' + (node.id || '') + ' ' + (node.getAttribute && (node.getAttribute('data-testid') || ''))).toLowerCase();
+                    var tag = (node.tagName || '').toUpperCase();
+                    if (tag === 'ARTICLE') return node;
+                    if (/card|poster|tile|thumb|cover|title-card|titlecard/.test(hint)) return node;
+                    node = node.parentElement;
+                }
+                return el || null;
+            };
+            window.__tvbLooksLikeWatchControl = function(n) {
+                if (!n) return false;
+                var href = ((n.getAttribute && n.getAttribute('href')) || n.href || '').toLowerCase();
+                var label = (
+                    (n.getAttribute && (n.getAttribute('aria-label') || n.getAttribute('title') || '')) + ' ' +
+                    (n.textContent || '')
+                ).toLowerCase();
+                if (href.indexOf('youtube') !== -1 || href.indexOf('youtu.be') !== -1) return true;
+                if (label.indexOf('youtube') !== -1 || label.indexOf('trailer') !== -1) return true;
+                if (/\\bwatch(\\s|$)/.test(label) || label.indexOf('watch now') !== -1) return true;
+                return false;
+            };
+            window.__tvbClearRevealedOverlays = function(root) {
+                var list = root && root.__tvbRevealed;
+                if (!list) return;
+                for (var i = 0; i < list.length; i++) {
+                    var rec = list[i];
+                    if (!rec || !rec.el) continue;
+                    try {
+                        rec.el.style.display = rec.display;
+                        rec.el.style.opacity = rec.opacity;
+                        rec.el.style.visibility = rec.visibility;
+                        rec.el.style.pointerEvents = rec.pe;
+                    } catch (e) {}
+                }
+                root.__tvbRevealed = [];
+            };
+            window.__tvbRevealHoverOverlays = function(root) {
+                if (!root || !root.querySelectorAll) return;
+                window.__tvbClearRevealedOverlays(root);
+                root.__tvbRevealed = [];
+                var nodes = root.querySelectorAll('a, button, [role="button"], [class*="overlay"], [class*="Overlay"]');
+                for (var i = 0; i < nodes.length; i++) {
+                    var n = nodes[i];
+                    var isWatch = window.__tvbLooksLikeWatchControl(n);
+                    var isOverlay = /overlay/i.test(String(n.className || ''));
+                    if (!isWatch && !isOverlay) continue;
+                    if (isOverlay && !isWatch && !(n.querySelector && n.querySelector('a, button, [role="button"]'))) continue;
+                    try {
+                        var cs = window.getComputedStyle(n);
+                        var hidden = cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) < 0.15;
+                        if (!hidden && !isWatch) continue;
+                        root.__tvbRevealed.push({
+                            el: n,
+                            display: n.style.display,
+                            opacity: n.style.opacity,
+                            visibility: n.style.visibility,
+                            pe: n.style.pointerEvents
+                        });
+                        if (cs.display === 'none') n.style.setProperty('display', 'flex', 'important');
+                        n.style.setProperty('opacity', '1', 'important');
+                        n.style.setProperty('visibility', 'visible', 'important');
+                        n.style.setProperty('pointer-events', 'auto', 'important');
+                    } catch (e2) {}
+                }
+            };
+            window.__tvbApplyCardHover = function(el) {
+                var card = window.__tvbFindHoverCard(el);
+                if (window.__tvbHoverCard && window.__tvbHoverCard !== card) {
+                    try { window.__tvbHoverCard.classList.remove(window.__tvbHoverClass); } catch (e) {}
+                    window.__tvbClearRevealedOverlays(window.__tvbHoverCard);
+                }
+                window.__tvbHoverCard = card || null;
+                if (!card) return;
+                try { card.classList.add(window.__tvbHoverClass); } catch (e2) {}
+                window.__tvbRevealHoverOverlays(card);
+            };
+            window.__tvbPinHoverPeek = function() {
+                var el = window.__tvbHoverLeaf;
+                if (!el) return false;
+                window.__tvbApplyCardHover(el);
+                if (window.__tvbPinOverlay) window.__tvbPinOverlay(window.__tvbHoverCard || el);
+                return true;
+            };
+            window.__tvbNodeHint = function(n) {
+                if (!n) return '';
+                var cls = (n.className && n.className.baseVal !== undefined)
+                    ? String(n.className.baseVal)
+                    : String(n.className || '');
+                return (
+                    cls + ' ' + (n.id || '') + ' ' +
+                    ((n.getAttribute && (n.getAttribute('aria-label') || n.getAttribute('title') || n.getAttribute('data-testid') || '')) || '') + ' ' +
+                    ((n.textContent || '').slice(0, 80))
+                ).toLowerCase();
+            };
+            window.__tvbYoutubeURLInString = function(s) {
+                if (!s) return '';
+                var m = String(s).match(/https?:\\/\\/(?:www\\.)?(?:youtube\\.com\\/watch\\?v=[\\w-]+|youtube\\.com\\/embed\\/[\\w-]+|youtu\\.be\\/[\\w-]+)/i);
+                return m ? m[0] : '';
+            };
+            window.__tvbLooksLikeFavoriteControl = function(n) {
+                if (!n) return false;
+                var hint = window.__tvbNodeHint(n);
+                return /favorite|favourite|watchlist|watch-list|bookmark|wishlist|add to list|my list|heart|star|save\\b/.test(hint);
+            };
+            window.__tvbMarkCardAction = function(el, id) {
+                if (!el || !el.setAttribute) return;
+                el.setAttribute('data-tvb-card-act', String(id));
+            };
+            window.__tvbInspectHoverCard = function() {
+                if (window.__tvbPinHoverPeek) window.__tvbPinHoverPeek();
+                var start = window.__tvbHoverLeaf;
+                var card = window.__tvbFindHoverCard(start);
+                if (start && start.closest) {
+                    var richer = start;
+                    var hops = 0;
+                    while (richer && richer !== document.body && hops < 8) {
+                        if (richer.querySelector && (
+                            richer.querySelector('a[href*="youtu"]') ||
+                            richer.querySelector('[aria-label*="YouTube"], [title*="YouTube"], [aria-label*="Favorite"], [aria-label*="Watchlist"]')
+                        )) {
+                            card = richer;
+                            break;
+                        }
+                        richer = richer.parentElement;
+                        hops++;
+                    }
+                }
+                if (!card) return { title: '', youtube: [], favorite: [] };
+
+                document.querySelectorAll('[data-tvb-card-act]').forEach(function(n) {
+                    n.removeAttribute('data-tvb-card-act');
+                });
+
+                var title = '';
+                var heading = card.querySelector('h1, h2, h3, h4, [class*="title"], [class*="Title"]');
+                if (heading) title = (heading.textContent || '').trim();
+                if (!title) {
+                    var img = card.querySelector('img[alt]');
+                    if (img) title = (img.getAttribute('alt') || '').trim();
+                }
+                if (!title) title = (card.getAttribute('aria-label') || card.getAttribute('title') || '').trim();
+
+                var youtube = [];
+                var favorite = [];
+                var seenHref = {};
+                var seenFavEl = [];
+                var nextId = 1;
+
+                function pushYoutube(el, href, label) {
+                    var url = href || (el && ((el.getAttribute && el.getAttribute('href')) || el.href)) || '';
+                    url = window.__tvbYoutubeURLInString(url) || url;
+                    if (!url && el) {
+                        var attrs = el.attributes;
+                        for (var ai = 0; attrs && ai < attrs.length; ai++) {
+                            var found = window.__tvbYoutubeURLInString(attrs[ai].value);
+                            if (found) { url = found; break; }
+                        }
+                    }
+                    if (!url) return;
+                    var key = url.split('&')[0];
+                    if (seenHref[key]) return;
+                    seenHref[key] = 1;
+                    var id = 'yt' + nextId++;
+                    if (el) window.__tvbMarkCardAction(el, id);
+                    youtube.push({
+                        id: id,
+                        title: (label || 'YouTube').trim().slice(0, 80) || 'YouTube',
+                        href: url
+                    });
+                }
+
+                function pushFavorite(el, label) {
+                    if (!el) return;
+                    if (seenFavEl.indexOf(el) !== -1) return;
+                    seenFavEl.push(el);
+                    var id = 'fav' + nextId++;
+                    window.__tvbMarkCardAction(el, id);
+                    favorite.push({
+                        id: id,
+                        title: (label || 'Favorite').trim().slice(0, 80) || 'Favorite',
+                        href: ''
+                    });
+                }
+
+                var nodes = card.querySelectorAll('a, button, [role="button"], [onclick], iframe, [data-href], [data-url], [data-trailer], [data-youtube]');
+                for (var i = 0; i < nodes.length; i++) {
+                    var n = nodes[i];
+                    var href = ((n.getAttribute && (n.getAttribute('href') || n.getAttribute('src') || n.getAttribute('data-href') || n.getAttribute('data-url') || n.getAttribute('data-trailer') || n.getAttribute('data-youtube'))) || n.href || n.src || '');
+                    var label = ((n.getAttribute && (n.getAttribute('aria-label') || n.getAttribute('title'))) || (n.textContent || '')).trim();
+                    if (window.__tvbYoutubeURLInString(href) || /youtube|youtu\\.be|trailer/i.test(href + ' ' + label + ' ' + window.__tvbNodeHint(n))) {
+                        pushYoutube(n, href, label || 'YouTube');
+                    } else if (window.__tvbLooksLikeFavoriteControl(n)) {
+                        pushFavorite(n, label || 'Favorite');
+                    }
+                }
+
+                if (youtube.length === 0) {
+                    var html = '';
+                    try { html = card.innerHTML || ''; } catch (e) {}
+                    var matches = html.match(/https?:\\/\\/(?:www\\.)?(?:youtube\\.com\\/(?:watch\\?v=|embed\\/)[\\w-]+|youtu\\.be\\/[\\w-]+)/gi) || [];
+                    for (var m = 0; m < matches.length; m++) pushYoutube(null, matches[m], 'YouTube');
+                    if (card.attributes) {
+                        for (var a = 0; a < card.attributes.length; a++) {
+                            var u = window.__tvbYoutubeURLInString(card.attributes[a].value);
+                            if (u) pushYoutube(null, u, 'YouTube');
+                        }
+                    }
+                }
+
+                return { title: title, youtube: youtube, favorite: favorite };
+            };
+            window.__tvbActivateCardAction = function(id) {
+                var el = document.querySelector('[data-tvb-card-act=\"' + String(id) + '\"]');
+                if (!el) return false;
+                try { el.focus(); } catch (e) {}
+                try { el.click(); } catch (e2) {}
+                return true;
+            };
             window.__tvbApplyHoverAt = function(el, x, y, buttons) {
                 var btnState = (typeof buttons === 'number') ? buttons : 0;
                 var prevEl = window.__tvbHoverLeaf || null;
@@ -1142,6 +1416,11 @@ extension JavaScriptExecutor {
                         }
                     }
                     window.__tvbClearHoverClasses(prevChain);
+                    if (window.__tvbHoverCard) {
+                        window.__tvbClearRevealedOverlays(window.__tvbHoverCard);
+                        try { window.__tvbHoverCard.classList.remove(window.__tvbHoverClass); } catch (e3) {}
+                        window.__tvbHoverCard = null;
+                    }
                     window.__tvbHoverLeaf = null;
                     window.__tvbHoverChain = [];
                     return;
@@ -1204,6 +1483,7 @@ extension JavaScriptExecutor {
 
                 window.__tvbHoverLeaf = el;
                 window.__tvbHoverChain = nextChain;
+                window.__tvbApplyCardHover(el);
             };
     """
 

@@ -193,6 +193,22 @@ final class BrowserViewModel {
         }
     }
 
+    func pinHoverPeek() {
+        Task {
+            await webContainer.jsExecutor.pinHoverPeek()
+        }
+    }
+
+    func inspectHoverCard(at point: CGPoint) async -> (title: String, youtube: [[String: Any]], favorite: [[String: Any]]) {
+        await webContainer.jsExecutor.inspectHoverCard(at: point)
+    }
+
+    func activateCardAction(id: String) {
+        Task {
+            _ = await webContainer.jsExecutor.activateCardAction(id: id)
+        }
+    }
+
     func handlePointerClick(at screenPoint: CGPoint) {
         guard screenPoint.y >= 0 else { return }
         inputTask?.cancel()

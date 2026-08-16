@@ -29,6 +29,7 @@ final class BrowserViewController: GCEventViewController {
     private weak var videoSettingsMenu: SafariMenuViewController?
     /// Last measured document scroll size (CSS px); used to avoid scrolling into empty canvas.
     private var cachedDocumentSize: CGSize = .zero
+    private var pointerPressBeganAt: TimeInterval = 0
 
     override var canBecomeFirstResponder: Bool { true }
 
@@ -324,6 +325,7 @@ final class BrowserViewController: GCEventViewController {
         reclaimPointerControl()
         noteCursorActivity()
         clickpadCaptureView.beginClickHold()
+        pointerPressBeganAt = ProcessInfo.processInfo.systemUptime
         if viewModel.isShowingStartPage { return }
         if isLikelyVideoDoubleClick {
             pendingVideoDoubleClick = true
@@ -367,6 +369,12 @@ final class BrowserViewController: GCEventViewController {
         if !dragged {
             if now - lastSelectClickTime <= DSMetrics.pointerClickDebounce {
                 viewModel.handlePointerUp(at: pointer.position, fireClick: false)
+                return
+            }
+            if now - pointerPressBeganAt >= DSMetrics.pointerPeekHold {
+                lastSelectClickTime = now
+                viewModel.handlePointerUp(at: pointer.position, fireClick: false)
+                showCardPeekActions()
                 return
             }
             lastSelectClickTime = now
@@ -975,6 +983,91 @@ final class BrowserViewController: GCEventViewController {
             return "\(Int(rate))×"
         }
         return String(format: "%g×", rate)
+    }
+
+    private func showCardPeekActions() {
+        let point = pointer.position
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let snap = await self.viewModel.inspectHoverCard(at: point)
+            self.presentCardPeekActions(
+                title: snap.title,
+                youtube: snap.youtube,
+                favorite: snap.favorite
+            )
+        }
+    }
+
+    private func presentCardPeekActions(
+        title: String,
+        youtube: [[String: Any]],
+        favorite: [[String: Any]]
+    ) {
+        guard presentedViewController == nil, !isPresentingChrome else { return }
+
+        var youtubeRows: [SafariMenuRow] = []
+        for item in youtube {
+            let id = (item["id"] as? String) ?? ""
+            let href = (item["href"] as? String) ?? ""
+            let label = (item["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let rowTitle = (label?.isEmpty == false) ? label! : "YouTube"
+            youtubeRows.append(SafariMenuRow(
+                title: rowTitle,
+                subtitle: href.isEmpty ? nil : href,
+                symbol: "play.rectangle.fill",
+                action: { [weak self] in
+                    if !href.isEmpty {
+                        self?.viewModel.load(rawInput: href)
+                    } else if !id.isEmpty {
+                        self?.viewModel.activateCardAction(id: id)
+                    }
+                }
+            ))
+        }
+        if youtubeRows.isEmpty {
+            youtubeRows.append(SafariMenuRow(
+                title: "No YouTube Found",
+                subtitle: "This card has no YouTube link we can see",
+                symbol: "play.rectangle",
+                style: .disabled
+            ))
+        }
+
+        var favoriteRows: [SafariMenuRow] = []
+        for item in favorite {
+            let id = (item["id"] as? String) ?? ""
+            let label = (item["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let rowTitle = (label?.isEmpty == false) ? label! : "Favorite"
+            favoriteRows.append(SafariMenuRow(
+                title: rowTitle,
+                symbol: "heart.fill",
+                action: { [weak self] in
+                    guard !id.isEmpty else { return }
+                    self?.viewModel.activateCardAction(id: id)
+                }
+            ))
+        }
+        if favoriteRows.isEmpty {
+            favoriteRows.append(SafariMenuRow(
+                title: "No Favorite Found",
+                subtitle: "This card has no favorite or watchlist button we can see",
+                symbol: "heart",
+                style: .disabled
+            ))
+        }
+
+        let heading = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let menu = SafariMenuViewController(
+            title: heading.isEmpty ? "Card" : heading,
+            sections: [
+                SafariMenuSection(title: "YouTube", rows: youtubeRows),
+                SafariMenuSection(title: "Favorite", rows: favoriteRows),
+            ]
+        )
+        menu.onDismiss = { [weak self] in
+            self?.reclaimPointerControl()
+        }
+        presentChrome(menu)
     }
 
     private func handleMenuPress() {

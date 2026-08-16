@@ -126,4 +126,20 @@ actor JavaScriptExecutor {
         }
         return nil
     }
+
+    static func dictionaryArray(_ result: Any?) -> [[String: Any]] {
+        if let arr = result as? [[String: Any]] { return arr }
+        if let arr = result as? [Any] {
+            return arr.compactMap { item -> [String: Any]? in
+                if let d = item as? [String: Any] { return d }
+                if let d = item as? NSDictionary {
+                    var mapped: [String: Any] = [:]
+                    for (k, v) in d { if let ks = k as? String { mapped[ks] = v } }
+                    return mapped
+                }
+                return nil
+            }
+        }
+        return []
+    }
 }
