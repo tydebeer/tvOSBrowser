@@ -18,12 +18,75 @@ static Class WKWebViewClass(void)          { return NSClassFromString(@"WKWebVie
 static Class WKConfigurationClass(void)    { return NSClassFromString(@"WKWebViewConfiguration"); }
 static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsiteDataStore"); }
 
+static void TVBAddUserScript(id userContent, NSString *source, BOOL mainFrameOnly) {
+    Class userScriptClass = NSClassFromString(@"WKUserScript");
+    if (!userScriptClass || !userContent || source.length == 0) return;
+    SEL userScriptInitSel = NSSelectorFromString(@"initWithSource:injectionTime:forMainFrameOnly:");
+    if (![userScriptClass instancesRespondToSelector:userScriptInitSel]) return;
+    // WKUserScriptInjectionTimeAtDocumentStart == 0
+    id script = ((id (*)(id, SEL, NSString *, NSInteger, BOOL))objc_msgSend)(
+        [userScriptClass alloc], userScriptInitSel, source, 0, mainFrameOnly
+    );
+    SEL addSel = NSSelectorFromString(@"addUserScript:");
+    if (script && [userContent respondsToSelector:addSel]) {
+        ((void (*)(id, SEL, id))objc_msgSend)(userContent, addSel, script);
+    }
+}
+
+// Runs in every frame (including cross-origin YouTube) so parent postMessage can click/play.
+static NSString *TVBEmbedPointerUserScript(void) {
+    return
+    @"(function(){"
+    "if(window.__tvbEmbedBridge)return;window.__tvbEmbedBridge=1;"
+    "function fire(x,y,type){"
+    "var el=document.elementFromPoint(x,y)||document.documentElement;"
+    "function trust(evt){try{Object.defineProperty(evt,'isTrusted',{get:function(){return true;}});}catch(e){}return evt;}"
+    "function send(name,Ctor,extra){"
+    "if(!Ctor)return;"
+    "var init={bubbles:true,cancelable:true,composed:true,view:window,clientX:x,clientY:y,screenX:x,screenY:y,button:0,buttons:0,detail:1};"
+    "if(extra)for(var k in extra)init[k]=extra[k];"
+    "try{el.dispatchEvent(trust(new Ctor(name,init)));}catch(e){}"
+    "}"
+    "if(type==='move'){"
+    "if(typeof PointerEvent==='function')send('pointermove',PointerEvent,{pointerId:1,pointerType:'mouse',isPrimary:true,buttons:0,pressure:0});"
+    "send('mousemove',MouseEvent,{buttons:0});"
+    "return;"
+    "}"
+    "if(type==='down'||type==='click'){"
+    "if(typeof PointerEvent==='function')send('pointerdown',PointerEvent,{pointerId:1,pointerType:'mouse',isPrimary:true,buttons:1,pressure:0.5});"
+    "send('mousedown',MouseEvent,{buttons:1});"
+    "}"
+    "if(type==='up'||type==='click'){"
+    "if(typeof PointerEvent==='function')send('pointerup',PointerEvent,{pointerId:1,pointerType:'mouse',isPrimary:true,buttons:0,pressure:0});"
+    "send('mouseup',MouseEvent,{buttons:0});"
+    "}"
+    "if(type==='click'){"
+    "send('click',MouseEvent,{buttons:0});"
+    "try{el.click();}catch(e){}"
+    "var v=document.querySelector('video');"
+    "if(v&&v.paused){try{v.play();}catch(e2){}}"
+    "}"
+    "}"
+    "window.addEventListener('message',function(ev){"
+    "var data=ev.data;"
+    "if(typeof data==='string'){try{data=JSON.parse(data);}catch(e){return;}}"
+    "if(!data||data.__tvb!=='pointer')return;"
+    "fire(Number(data.x)||0,Number(data.y)||0,data.type||'click');"
+    "});"
+    "})();";
+}
+
 @interface WebViewBridge ()
 @property (nonatomic, strong) id wkWebView;      // runtime: WKWebView
 @property (nonatomic, strong) UIView *fallbackView;
 @property (nonatomic, strong) UIScrollView *fallbackScrollView;
 @property (nonatomic, copy, nullable) NSString *pendingRequestURL;
 @property (nonatomic) BOOL isObserving;
+- (void)tvb_withWebViewInteraction:(void (NS_NOESCAPE ^)(void))block;
+- (nullable id)tvb_pageWorld;
+- (NSArray *)tvb_allFrames;
+- (NSArray *)tvb_childFramesMatching:(nullable NSString *)fragment;
+- (nullable NSString *)tvb_urlStringForFrame:(id)frame;
 @end
 
 @implementation WebViewBridge
@@ -57,43 +120,35 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
     // Create WKWebViewConfiguration via runtime
     id config = [[configClass alloc] init];
     [config setValue:@YES forKey:@"allowsInlineMediaPlayback"];
+    // Let synthetic clicks / iframe play() start media (YouTube embeds have no real TV touch).
+    @try { [config setValue:@0 forKey:@"mediaTypesRequiringUserActionForPlayback"]; } @catch (__unused NSException *e) {}
+    @try { [config setValue:@NO forKey:@"requiresUserActionForMediaPlayback"]; } @catch (__unused NSException *e) {}
 
     // Advertise a desktop-like pointer early so sites don't pick a touch/no-hover UI.
-    Class userScriptClass = NSClassFromString(@"WKUserScript");
     id userContent = [config valueForKey:@"userContentController"];
-    if (userScriptClass && userContent) {
-        NSString *earlyJS =
-            @"(function(){"
-            "try{Object.defineProperty(navigator,'maxTouchPoints',{get:function(){return 0;},configurable:true});}catch(e){}"
-            "if(window.__tvbEarlyMQ)return;window.__tvbEarlyMQ=1;"
-            "var orig=window.matchMedia.bind(window);"
-            "window.matchMedia=function(query){"
-            "var q=String(query||'').toLowerCase().replace(/\\s+/g,'');"
-            "function mq(m){return{matches:!!m,media:query,onchange:null,"
-            "addListener:function(){},removeListener:function(){},"
-            "addEventListener:function(){},removeEventListener:function(){},"
-            "dispatchEvent:function(){return false;}};"
-            "}"
-            "if(q.indexOf('(hover:none)')!==-1||q.indexOf('(any-hover:none)')!==-1)return mq(false);"
-            "if(q.indexOf('(hover:hover)')!==-1||q.indexOf('(any-hover:hover)')!==-1)return mq(true);"
-            "if(q.indexOf('(pointer:coarse)')!==-1||q.indexOf('(any-pointer:coarse)')!==-1)return mq(false);"
-            "if(q.indexOf('(pointer:fine)')!==-1||q.indexOf('(any-pointer:fine)')!==-1)return mq(true);"
-            "if(q.indexOf('(pointer:none)')!==-1)return mq(false);"
-            "return orig(query);"
-            "};"
-            "})();";
-        // WKUserScriptInjectionTimeAtDocumentStart == 0
-        SEL userScriptInitSel = NSSelectorFromString(@"initWithSource:injectionTime:forMainFrameOnly:");
-        if ([userScriptClass instancesRespondToSelector:userScriptInitSel]) {
-            id script = ((id (*)(id, SEL, NSString *, NSInteger, BOOL))objc_msgSend)(
-                [userScriptClass alloc], userScriptInitSel, earlyJS, 0, YES
-            );
-            SEL addSel = NSSelectorFromString(@"addUserScript:");
-            if (script && [userContent respondsToSelector:addSel]) {
-                ((void (*)(id, SEL, id))objc_msgSend)(userContent, addSel, script);
-            }
-        }
-    }
+    NSString *earlyJS =
+        @"(function(){"
+        "try{Object.defineProperty(navigator,'maxTouchPoints',{get:function(){return 0;},configurable:true});}catch(e){}"
+        "if(window.__tvbEarlyMQ)return;window.__tvbEarlyMQ=1;"
+        "var orig=window.matchMedia.bind(window);"
+        "window.matchMedia=function(query){"
+        "var q=String(query||'').toLowerCase().replace(/\\s+/g,'');"
+        "function mq(m){return{matches:!!m,media:query,onchange:null,"
+        "addListener:function(){},removeListener:function(){},"
+        "addEventListener:function(){},removeEventListener:function(){},"
+        "dispatchEvent:function(){return false;}};"
+        "}"
+        "if(q.indexOf('(hover:none)')!==-1||q.indexOf('(any-hover:none)')!==-1)return mq(false);"
+        "if(q.indexOf('(hover:hover)')!==-1||q.indexOf('(any-hover:hover)')!==-1)return mq(true);"
+        "if(q.indexOf('(pointer:coarse)')!==-1||q.indexOf('(any-pointer:coarse)')!==-1)return mq(false);"
+        "if(q.indexOf('(pointer:fine)')!==-1||q.indexOf('(any-pointer:fine)')!==-1)return mq(true);"
+        "if(q.indexOf('(pointer:none)')!==-1)return mq(false);"
+        "return orig(query);"
+        "};"
+        "})();";
+    TVBAddUserScript(userContent, earlyJS, YES);
+    // Injected into every frame, including cross-origin YouTube embeds.
+    TVBAddUserScript(userContent, TVBEmbedPointerUserScript(), NO);
 
     // Create WKWebView via runtime — avoids tvOS SDK compile restrictions
     id wkAlloc = [wkClass alloc];
@@ -251,6 +306,128 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
     [self evaluateJavaScript:js completionHandler:completionHandler];
 }
 
+- (void)evaluateJavaScriptInChildFrames:(NSString *)js
+                            urlContains:(NSString *)urlContains
+                        withUserGesture:(BOOL)gesture
+                      completionHandler:(void (^)(id _Nullable, NSError * _Nullable))completionHandler {
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self evaluateJavaScriptInChildFrames:js
+                                      urlContains:urlContains
+                                  withUserGesture:gesture
+                                completionHandler:completionHandler];
+        });
+        return;
+    }
+    if (!_wkWebView || js.length == 0) {
+        if (completionHandler) completionHandler(@NO, nil);
+        return;
+    }
+
+    NSArray *frames = [self tvb_childFramesMatching:urlContains];
+    SEL gestureSel = NSSelectorFromString(@"evaluateJavaScript:inFrame:inContentWorld:withUserGesture:completionHandler:");
+    if (frames.count == 0 || ![_wkWebView respondsToSelector:gestureSel]) {
+        if (completionHandler) completionHandler(@NO, nil);
+        return;
+    }
+
+    id world = [self tvb_pageWorld];
+    dispatch_group_t group = dispatch_group_create();
+    __block BOOL any = NO;
+    for (id frame in frames) {
+        dispatch_group_enter(group);
+        @try {
+            ((void (*)(id, SEL, NSString *, id, id, BOOL, void (^)(id, NSError *)))objc_msgSend)(
+                _wkWebView, gestureSel, js, frame, world, gesture, ^(id result, NSError *error) {
+                    (void)error;
+                    if ([result isKindOfClass:[NSNumber class]] && [result boolValue]) any = YES;
+                    dispatch_group_leave(group);
+                }
+            );
+        } @catch (__unused NSException *e) {
+            dispatch_group_leave(group);
+        }
+    }
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+        if (completionHandler) completionHandler(@(any), nil);
+    });
+}
+
+- (nullable id)tvb_pageWorld {
+    Class worldClass = NSClassFromString(@"WKContentWorld");
+    if ([worldClass respondsToSelector:NSSelectorFromString(@"pageWorld")]) {
+        return ((id (*)(Class, SEL))objc_msgSend)(worldClass, NSSelectorFromString(@"pageWorld"));
+    }
+    return nil;
+}
+
+- (NSArray *)tvb_allFrames {
+    NSArray<NSString *> *keys = @[ @"_wk_frameInfos", @"_frames", @"allFrames", @"frames", @"_allFrames" ];
+    for (NSString *key in keys) {
+        @try {
+            id value = [_wkWebView valueForKey:key];
+            if ([value isKindOfClass:[NSArray class]] && [value count] > 0) return value;
+        } @catch (__unused NSException *e) {}
+    }
+    NSArray<NSString *> *sels = @[ @"_wk_frameInfos", @"_frames", @"_allFrames", @"allFrames" ];
+    for (NSString *name in sels) {
+        SEL sel = NSSelectorFromString(name);
+        if ([_wkWebView respondsToSelector:sel]) {
+            id value = ((id (*)(id, SEL))objc_msgSend)(_wkWebView, sel);
+            if ([value isKindOfClass:[NSArray class]] && [value count] > 0) return value;
+        }
+    }
+    return @[];
+}
+
+- (nullable NSString *)tvb_urlStringForFrame:(id)frame {
+    if (!frame) return nil;
+    @try {
+        NSURL *url = [frame valueForKey:@"url"];
+        if ([url isKindOfClass:[NSURL class]]) return url.absoluteString;
+        if ([url isKindOfClass:[NSString class]]) return (NSString *)url;
+    } @catch (__unused NSException *e) {}
+    @try {
+        NSURLRequest *request = [frame valueForKey:@"request"];
+        if ([request isKindOfClass:[NSURLRequest class]]) return request.URL.absoluteString;
+    } @catch (__unused NSException *e) {}
+    return nil;
+}
+
+- (NSArray *)tvb_childFramesMatching:(NSString *)fragment {
+    NSArray *all = [self tvb_allFrames];
+    if (all.count == 0) return @[];
+    NSString *needle = fragment.length ? fragment.lowercaseString : nil;
+    NSMutableArray *out = [NSMutableArray array];
+    for (id frame in all) {
+        BOOL isMain = NO;
+        @try {
+            id flag = [frame valueForKey:@"isMainFrame"];
+            if (flag) isMain = [flag boolValue];
+        } @catch (__unused NSException *e) {}
+        @try {
+            id flag = [frame valueForKey:@"mainFrame"];
+            if (flag) isMain = isMain || [flag boolValue];
+        } @catch (__unused NSException *e) {}
+        if (isMain) continue;
+        if (needle) {
+            NSString *urlString = [self tvb_urlStringForFrame:frame];
+            if (urlString.length == 0 || [urlString.lowercaseString containsString:needle] == NO) continue;
+        }
+        [out addObject:frame];
+    }
+    return out;
+}
+
+- (void)tvb_withWebViewInteraction:(void (NS_NOESCAPE ^)(void))block {
+    if (!_wkWebView || !block) return;
+    UIView *wv = (UIView *)_wkWebView;
+    BOOL wasEnabled = wv.userInteractionEnabled;
+    wv.userInteractionEnabled = YES;
+    block();
+    wv.userInteractionEnabled = wasEnabled;
+}
+
 - (void)simulateClickAtPoint:(CGPoint)point {
     if (![NSThread isMainThread]) {
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -259,43 +436,45 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
         return;
     }
 
-    // Private mouse simulation (present on some WebKit builds).
-    NSArray<NSString *> *downSels = @[ @"_simulateMouseDownAt:", @"simulateMouseDownAt:" ];
-    NSArray<NSString *> *upSels   = @[ @"_simulateMouseUpAt:",   @"simulateMouseUpAt:" ];
-    NSArray<NSString *> *clickSels = @[
-        @"_simulateMouseClickAt:button:count:",
-        @"simulateMouseClickAt:button:count:"
-    ];
+    [self tvb_withWebViewInteraction:^{
+        // Private mouse simulation (present on some WebKit builds).
+        NSArray<NSString *> *downSels = @[ @"_simulateMouseDownAt:", @"simulateMouseDownAt:" ];
+        NSArray<NSString *> *upSels   = @[ @"_simulateMouseUpAt:",   @"simulateMouseUpAt:" ];
+        NSArray<NSString *> *clickSels = @[
+            @"_simulateMouseClickAt:button:count:",
+            @"simulateMouseClickAt:button:count:"
+        ];
 
-    BOOL didClick = NO;
-    for (NSString *name in clickSels) {
-        SEL sel = NSSelectorFromString(name);
-        if ([_wkWebView respondsToSelector:sel]) {
-            // button 0 = left, count 1
-            ((void (*)(id, SEL, CGPoint, unsigned long long, unsigned long long))objc_msgSend)(
-                _wkWebView, sel, point, 0, 1
-            );
-            didClick = YES;
-            break;
-        }
-    }
-
-    if (!didClick) {
-        for (NSString *name in downSels) {
+        BOOL didClick = NO;
+        for (NSString *name in clickSels) {
             SEL sel = NSSelectorFromString(name);
-            if ([_wkWebView respondsToSelector:sel]) {
-                ((void (*)(id, SEL, CGPoint))objc_msgSend)(_wkWebView, sel, point);
+            if ([self->_wkWebView respondsToSelector:sel]) {
+                // button 0 = left, count 1
+                ((void (*)(id, SEL, CGPoint, unsigned long long, unsigned long long))objc_msgSend)(
+                    self->_wkWebView, sel, point, 0, 1
+                );
+                didClick = YES;
                 break;
             }
         }
-        for (NSString *name in upSels) {
-            SEL sel = NSSelectorFromString(name);
-            if ([_wkWebView respondsToSelector:sel]) {
-                ((void (*)(id, SEL, CGPoint))objc_msgSend)(_wkWebView, sel, point);
-                break;
+
+        if (!didClick) {
+            for (NSString *name in downSels) {
+                SEL sel = NSSelectorFromString(name);
+                if ([self->_wkWebView respondsToSelector:sel]) {
+                    ((void (*)(id, SEL, CGPoint))objc_msgSend)(self->_wkWebView, sel, point);
+                    break;
+                }
+            }
+            for (NSString *name in upSels) {
+                SEL sel = NSSelectorFromString(name);
+                if ([self->_wkWebView respondsToSelector:sel]) {
+                    ((void (*)(id, SEL, CGPoint))objc_msgSend)(self->_wkWebView, sel, point);
+                    break;
+                }
             }
         }
-    }
+    }];
 }
 
 - (void)simulateMouseMoveAtPoint:(CGPoint)point {
@@ -307,19 +486,21 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
     }
     if (!_wkWebView) return;
 
-    NSArray<NSString *> *moveSels = @[
-        @"_simulateMouseMoveAt:",
-        @"simulateMouseMoveAt:",
-        @"_simulateMouseMotionAt:",
-        @"simulateMouseMotionAt:"
-    ];
-    for (NSString *name in moveSels) {
-        SEL sel = NSSelectorFromString(name);
-        if ([_wkWebView respondsToSelector:sel]) {
-            ((void (*)(id, SEL, CGPoint))objc_msgSend)(_wkWebView, sel, point);
-            return;
+    [self tvb_withWebViewInteraction:^{
+        NSArray<NSString *> *moveSels = @[
+            @"_simulateMouseMoveAt:",
+            @"simulateMouseMoveAt:",
+            @"_simulateMouseMotionAt:",
+            @"simulateMouseMotionAt:"
+        ];
+        for (NSString *name in moveSels) {
+            SEL sel = NSSelectorFromString(name);
+            if ([self->_wkWebView respondsToSelector:sel]) {
+                ((void (*)(id, SEL, CGPoint))objc_msgSend)(self->_wkWebView, sel, point);
+                return;
+            }
         }
-    }
+    }];
 }
 
 - (void)simulateMouseDownAtPoint:(CGPoint)point {
@@ -330,14 +511,16 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
         return;
     }
     if (!_wkWebView) return;
-    NSArray<NSString *> *downSels = @[ @"_simulateMouseDownAt:", @"simulateMouseDownAt:" ];
-    for (NSString *name in downSels) {
-        SEL sel = NSSelectorFromString(name);
-        if ([_wkWebView respondsToSelector:sel]) {
-            ((void (*)(id, SEL, CGPoint))objc_msgSend)(_wkWebView, sel, point);
-            return;
+    [self tvb_withWebViewInteraction:^{
+        NSArray<NSString *> *downSels = @[ @"_simulateMouseDownAt:", @"simulateMouseDownAt:" ];
+        for (NSString *name in downSels) {
+            SEL sel = NSSelectorFromString(name);
+            if ([self->_wkWebView respondsToSelector:sel]) {
+                ((void (*)(id, SEL, CGPoint))objc_msgSend)(self->_wkWebView, sel, point);
+                return;
+            }
         }
-    }
+    }];
 }
 
 - (void)simulateMouseUpAtPoint:(CGPoint)point {
@@ -348,14 +531,16 @@ static Class WKDataStoreClass(void)        { return NSClassFromString(@"WKWebsit
         return;
     }
     if (!_wkWebView) return;
-    NSArray<NSString *> *upSels = @[ @"_simulateMouseUpAt:", @"simulateMouseUpAt:" ];
-    for (NSString *name in upSels) {
-        SEL sel = NSSelectorFromString(name);
-        if ([_wkWebView respondsToSelector:sel]) {
-            ((void (*)(id, SEL, CGPoint))objc_msgSend)(_wkWebView, sel, point);
-            return;
+    [self tvb_withWebViewInteraction:^{
+        NSArray<NSString *> *upSels = @[ @"_simulateMouseUpAt:", @"simulateMouseUpAt:" ];
+        for (NSString *name in upSels) {
+            SEL sel = NSSelectorFromString(name);
+            if ([self->_wkWebView respondsToSelector:sel]) {
+                ((void (*)(id, SEL, CGPoint))objc_msgSend)(self->_wkWebView, sel, point);
+                return;
+            }
         }
-    }
+    }];
 }
 
 // MARK: - Cache & Cookies (all via NSClassFromString — no WebKit headers needed)

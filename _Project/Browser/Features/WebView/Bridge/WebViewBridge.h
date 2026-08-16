@@ -35,6 +35,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)evaluateJavaScript:(NSString *)js completionHandler:(void (^ _Nullable)(id _Nullable result, NSError * _Nullable error))completionHandler;
 /// Runs JS as a user gesture when a private selector is available (needed for click → navigation).
 - (void)evaluateJavaScriptAsUserGesture:(NSString *)js completionHandler:(void (^ _Nullable)(id _Nullable result, NSError * _Nullable error))completionHandler;
+/// Runs JS in child frames (iframes). When `urlContains` is non-empty, only frames whose URL contains that string.
+- (void)evaluateJavaScriptInChildFrames:(NSString *)js
+                            urlContains:(NSString * _Nullable)urlContains
+                        withUserGesture:(BOOL)gesture
+                      completionHandler:(void (^ _Nullable)(id _Nullable result, NSError * _Nullable error))completionHandler;
 /// Best-effort native click at a point in web-view coordinates.
 - (void)simulateClickAtPoint:(CGPoint)point;
 /// Best-effort native mouse move (drives real CSS :hover when WebKit supports it).

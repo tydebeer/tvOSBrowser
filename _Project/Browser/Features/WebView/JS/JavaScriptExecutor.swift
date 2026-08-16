@@ -58,6 +58,38 @@ actor JavaScriptExecutor {
         }
     }
 
+    func evaluateJavaScriptInChildFrames(_ js: String, urlContains: String) async throws -> Any? {
+        guard let bridge else { return nil }
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.main.async {
+                bridge.evaluateJavaScriptInChildFrames(
+                    js,
+                    urlContains: urlContains,
+                    withUserGesture: true
+                ) { result, error in
+                    if let error { continuation.resume(throwing: error) }
+                    else { continuation.resume(returning: result) }
+                }
+            }
+        }
+    }
+
+    func activateChildFrameMedia(urlContains: String) async {
+        let js = """
+        (function() {
+            if (window.top === window) return false;
+            var video = document.querySelector('video');
+            if (video && video.paused) {
+                try { video.play(); return true; } catch (e) {}
+            }
+            var btn = document.querySelector('.ytp-large-play-button');
+            if (btn) { try { btn.click(); return true; } catch (e2) {} }
+            return false;
+        })()
+        """
+        _ = try? await evaluateJavaScriptInChildFrames(js, urlContains: urlContains)
+    }
+
     func currentPageZoom() async -> CGFloat {
         let webBridge = bridge
         return await MainActor.run { webBridge?.pageZoom() ?? DSMetrics.pageZoomDefault }

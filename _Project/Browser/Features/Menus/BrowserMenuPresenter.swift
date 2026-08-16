@@ -6,6 +6,9 @@ final class BrowserMenuPresenter {
     weak var viewController: UIViewController?
     private weak var presentedMenu: SafariMenuViewController?
 
+    /// Host presents through this so chrome can't double-present.
+    var presentMenu: ((SafariMenuViewController) -> Bool)?
+
     var onGoForward: (() -> Void)?
     var onURLInput: (() -> Void)?
     var onReload: (() -> Void)?
@@ -44,7 +47,7 @@ final class BrowserMenuPresenter {
         hasPage: Bool,
         isShowingStartPage: Bool
     ) {
-        guard let vc = viewController, vc.presentedViewController == nil else { return }
+        guard viewController != nil else { return }
 
         let settings = SettingsManager.shared
         var sections: [SafariMenuSection] = []
@@ -167,6 +170,16 @@ final class BrowserMenuPresenter {
             self?.onDismissed?()
         }
         presentedMenu = menu
+        if let presentMenu {
+            if !presentMenu(menu) {
+                presentedMenu = nil
+            }
+            return
+        }
+        guard let vc = viewController, vc.presentedViewController == nil else {
+            presentedMenu = nil
+            return
+        }
         vc.present(menu, animated: false)
     }
 }

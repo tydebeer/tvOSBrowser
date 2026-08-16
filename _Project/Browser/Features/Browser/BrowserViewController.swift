@@ -18,6 +18,8 @@ final class BrowserViewController: GCEventViewController {
     private var isSiteVideoFullscreen = false
     private var didRunStartup = false
     private var didInstallWebContainer = false
+    /// Blocks overlapping chrome presents (menu + subtitles, double Menu, etc.).
+    private var isPresentingChrome = false
     /// Last measured document scroll size (CSS px); used to avoid scrolling into empty canvas.
     private var cachedDocumentSize: CGSize = .zero
 
@@ -119,6 +121,9 @@ final class BrowserViewController: GCEventViewController {
 
     private func setupBrowserMenu() {
         browserMenu.viewController = self
+        browserMenu.presentMenu = { [weak self] menu in
+            self?.presentChrome(menu) ?? false
+        }
         browserMenu.onGoForward = { [weak self] in self?.viewModel.goForward() }
         browserMenu.onURLInput = { [weak self] in self?.showURLInput() }
         browserMenu.onReload = { [weak self] in self?.viewModel.reload() }
@@ -532,10 +537,6 @@ final class BrowserViewController: GCEventViewController {
                 completion()
                 return
             }
-            if self.presentedViewController != nil {
-                completion()
-                return
-            }
             var didComplete = false
             let finish = {
                 guard !didComplete else { return }
@@ -554,14 +555,12 @@ final class BrowserViewController: GCEventViewController {
                 finish()
                 self?.reclaimPointerControl()
             }
-            self.present(menu, animated: false)
+            if !self.presentChrome(menu) {
+                finish()
+            }
         }
         bridge.onJavaScriptConfirm = { [weak self] message, completion in
             guard let self else {
-                completion(false)
-                return
-            }
-            if self.presentedViewController != nil {
                 completion(false)
                 return
             }
@@ -589,7 +588,9 @@ final class BrowserViewController: GCEventViewController {
                 finish()
                 self?.reclaimPointerControl()
             }
-            self.present(menu, animated: false)
+            if !self.presentChrome(menu) {
+                finish()
+            }
         }
     }
 
@@ -598,6 +599,41 @@ final class BrowserViewController: GCEventViewController {
         view.becomeFirstResponder()
         setNeedsFocusUpdate()
         updateFocusIfNeeded()
+    }
+
+    /// Single gate for sheets/menus so two presents can't race in the same turn.
+    @discardableResult
+    private func presentChrome(_ child: UIViewController) -> Bool {
+        assert(Thread.isMainThread)
+        guard presentedViewController == nil, !isPresentingChrome else { return false }
+        isPresentingChrome = true
+
+        if let menu = child as? SafariMenuViewController {
+            let prior = menu.onDismiss
+            menu.onDismiss = { [weak self] in
+                self?.finishChromePresentation()
+                prior?()
+            }
+        }
+
+        present(child, animated: false)
+        return true
+    }
+
+    private func finishChromePresentation() {
+        if presentedViewController == nil {
+            isPresentingChrome = false
+        }
+    }
+
+    override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
+        super.dismiss(animated: flag) { [weak self] in
+            // Clear before completion so chained menu presents (e.g. Saved Passwords → Delete) work.
+            if self?.presentedViewController == nil {
+                self?.isPresentingChrome = false
+            }
+            completion?()
+        }
     }
 
     private func enterSiteVideoFullscreen() {
@@ -655,9 +691,9 @@ final class BrowserViewController: GCEventViewController {
     }
 
     private func showSubtitlePicker() {
-        guard isSiteVideoFullscreen, presentedViewController == nil else { return }
+        guard isSiteVideoFullscreen, presentedViewController == nil, !isPresentingChrome else { return }
         Task { @MainActor [weak self] in
-            guard let self, self.presentedViewController == nil else { return }
+            guard let self, self.presentedViewController == nil, !self.isPresentingChrome else { return }
             guard await self.ensureVideoFullscreenStillActive() else { return }
             let result = await self.viewModel.fullscreenSubtitleTracks()
             self.presentSubtitlePicker(tracks: result.tracks, selectedIndex: result.selectedIndex)
@@ -665,7 +701,7 @@ final class BrowserViewController: GCEventViewController {
     }
 
     private func presentSubtitlePicker(tracks: [[String: Any]], selectedIndex: Int) {
-        guard presentedViewController == nil else { return }
+        guard presentedViewController == nil, !isPresentingChrome else { return }
 
         var rows: [SafariMenuRow] = []
         if tracks.isEmpty {
@@ -714,7 +750,7 @@ final class BrowserViewController: GCEventViewController {
             self?.reclaimPointerControl()
             self?.noteCursorActivity()
         }
-        present(menu, animated: false)
+        presentChrome(menu)
     }
 
     private func handleMenuPress() {
@@ -767,6 +803,7 @@ final class BrowserViewController: GCEventViewController {
     }
 
     private func showBrowserMenu() {
+        guard presentedViewController == nil, !isPresentingChrome else { return }
         browserMenu.present(
             pageTitle: viewModel.currentTitle,
             currentURL: viewModel.currentURL,
@@ -777,7 +814,6 @@ final class BrowserViewController: GCEventViewController {
     }
 
     private func showWebTextInput(_ request: WebTextInputRequest) {
-        guard presentedViewController == nil else { return }
         let sheet = SafariAddressSheetViewController()
         sheet.sheetTitle = request.title
         sheet.placeholder = request.placeholder
@@ -789,12 +825,10 @@ final class BrowserViewController: GCEventViewController {
             self?.viewModel.submitTextInput(text)
             self?.reclaimPointerControl()
         }
-        present(sheet, animated: false)
+        presentChrome(sheet)
     }
 
     private func showLoginAutofillPicker(credentials: [SavedCredential], request: WebTextInputRequest) {
-        guard presentedViewController == nil else { return }
-
         var rows: [SafariMenuRow] = []
         if credentials.count == 1, let only = credentials.first {
             rows.append(SafariMenuRow(title: "Use Saved Login", subtitle: only.username, symbol: "key.fill", action: { [weak self] in
@@ -818,11 +852,10 @@ final class BrowserViewController: GCEventViewController {
             sections: [SafariMenuSection(title: nil, rows: rows)]
         )
         menu.onDismiss = { [weak self] in self?.reclaimPointerControl() }
-        present(menu, animated: false)
+        presentChrome(menu)
     }
 
     private func showSavePasswordPrompt(_ prompt: SavePasswordPrompt) {
-        guard presentedViewController == nil else { return }
         let primaryTitle = prompt.isUpdate ? "Update Password" : "Save Password"
         let menu = SafariMenuViewController(
             title: prompt.isUpdate ? "Update Password?" : "Save Password?",
@@ -847,11 +880,10 @@ final class BrowserViewController: GCEventViewController {
             ]
         )
         menu.onDismiss = { [weak self] in self?.reclaimPointerControl() }
-        present(menu, animated: false)
+        presentChrome(menu)
     }
 
     private func showSavedPasswordsMenu() {
-        guard presentedViewController == nil else { return }
         let all = viewModel.allSavedCredentials()
         var rows: [SafariMenuRow] = []
 
@@ -883,11 +915,10 @@ final class BrowserViewController: GCEventViewController {
             sections: [SafariMenuSection(title: nil, rows: rows)]
         )
         menu.onDismiss = { [weak self] in self?.reclaimPointerControl() }
-        present(menu, animated: false)
+        presentChrome(menu)
     }
 
     private func showDeleteCredentialConfirm(_ credential: SavedCredential) {
-        guard presentedViewController == nil else { return }
         let menu = SafariMenuViewController(
             title: "Delete Password?",
             sections: [
@@ -903,11 +934,10 @@ final class BrowserViewController: GCEventViewController {
             ]
         )
         menu.onDismiss = { [weak self] in self?.reclaimPointerControl() }
-        present(menu, animated: false)
+        presentChrome(menu)
     }
 
     private func showClearAllPasswordsConfirm() {
-        guard presentedViewController == nil else { return }
         let menu = SafariMenuViewController(
             title: "Clear All Passwords?",
             sections: [
@@ -923,11 +953,10 @@ final class BrowserViewController: GCEventViewController {
             ]
         )
         menu.onDismiss = { [weak self] in self?.reclaimPointerControl() }
-        present(menu, animated: false)
+        presentChrome(menu)
     }
 
     private func showBrowsingUnavailable() {
-        guard presentedViewController == nil else { return }
         let menu = SafariMenuViewController(
             title: "Browsing Unavailable",
             sections: [
@@ -942,7 +971,7 @@ final class BrowserViewController: GCEventViewController {
             ]
         )
         menu.onDismiss = { [weak self] in self?.reclaimPointerControl() }
-        present(menu, animated: false)
+        presentChrome(menu)
     }
 
     private func showConfirmClear(
@@ -951,7 +980,6 @@ final class BrowserViewController: GCEventViewController {
         confirmTitle: String,
         action: @escaping () -> Void
     ) {
-        guard presentedViewController == nil else { return }
         let menu = SafariMenuViewController(
             title: title,
             sections: [
@@ -967,19 +995,23 @@ final class BrowserViewController: GCEventViewController {
             ]
         )
         menu.onDismiss = { [weak self] in self?.reclaimPointerControl() }
-        present(menu, animated: false)
+        presentChrome(menu)
     }
 
     private func showURLInput() {
+        guard presentedViewController == nil, !isPresentingChrome else { return }
+        isPresentingChrome = true
         NativeTextPrompt.presentAddressPrompt(
             from: self,
             initialText: viewModel.currentURL ?? "",
             onGo: { [weak self] text in
+                self?.finishChromePresentation()
                 self?.viewModel.load(rawInput: text)
                 self?.reclaimPointerControl()
             },
             onSearch: { [weak self] text in
                 guard let self else { return }
+                self.finishChromePresentation()
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else {
                     self.reclaimPointerControl()
@@ -989,6 +1021,7 @@ final class BrowserViewController: GCEventViewController {
                 self.reclaimPointerControl()
             },
             onCancel: { [weak self] in
+                self?.finishChromePresentation()
                 self?.reclaimPointerControl()
             }
         )
@@ -1021,6 +1054,6 @@ final class BrowserViewController: GCEventViewController {
             ]
         )
         menu.onDismiss = { [weak self] in self?.reclaimPointerControl() }
-        present(menu, animated: false)
+        presentChrome(menu)
     }
 }

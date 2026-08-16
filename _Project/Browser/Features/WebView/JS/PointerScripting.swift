@@ -39,12 +39,15 @@ extension JavaScriptExecutor {
                 window.__tvbPointerHelpersInstalled = true;
                 \(Self.jsDropdownHelpers)
                 \(Self.jsHitTestHelpers)
+                \(Self.jsIframeHelpers)
                 \(Self.jsHoverEmulationHelpers)
                 \(Self.jsFullscreenHelpers)
                 window.__tvbInstallDesktopPointerCapability();
                 window.__tvbInstallHoverCSSMirror();
+                window.__tvbInstallYouTubeObserver();
             } else {
                 window.__tvbInstallHoverCSSMirror();
+                if (window.__tvbInstallYouTubeObserver) window.__tvbInstallYouTubeObserver();
             }
         })()
         """
@@ -75,16 +78,22 @@ extension JavaScriptExecutor {
             \(Self.jsPointConversion(viewPoint, pageZoom: pageZoom))
             if (!window.__tvbOpenDropdown) { \(Self.jsDropdownHelpers) }
             if (!window.__tvbResolveTargetAt) { \(Self.jsHitTestHelpers) }
+            if (!window.__tvbActivateIframe) { \(Self.jsIframeHelpers) }
             if (!window.__tvbApplyHoverAt) { \(Self.jsHoverEmulationHelpers) }
 
             var buttons = \(buttons);
-            var el = document.elementFromPoint(x, y);
+            var resolved = window.__tvbResolveTargetAt(x, y, 0);
+            var el = resolved.el;
             if (!el) {
                 window.__tvbApplyHoverAt(null, x, y, buttons);
                 if (!\(suppressDropdowns ? "true" : "false") && !window.__tvbPinnedOverlay) {
                     window.__tvbCloseDropdowns(null);
                 }
                 return false;
+            }
+
+            if (window.__tvbIsMediaSurface(el) && (el.tagName || '').toUpperCase() === 'IFRAME') {
+                window.__tvbForwardToIframe(el, x, y, 'move');
             }
 
             window.__tvbApplyHoverAt(el, x, y, buttons);
@@ -103,7 +112,7 @@ extension JavaScriptExecutor {
                 }
             }
 
-            var clickable = window.__tvbClickableFrom(el);
+            var clickable = resolved.target || window.__tvbClickableFrom(el);
             window.__tvbHoverEl = clickable || el;
             return !!clickable;
         })()
@@ -132,12 +141,16 @@ extension JavaScriptExecutor {
         (function() {
             \(Self.jsPointConversion(viewPoint, pageZoom: pageZoom))
             if (!window.__tvbResolveTargetAt) { \(Self.jsHitTestHelpers) }
+            if (!window.__tvbActivateIframe) { \(Self.jsIframeHelpers) }
             if (!window.__tvbApplyHoverAt) { \(Self.jsHoverEmulationHelpers) }
 
             var resolved = window.__tvbResolveTargetAt(x, y, \(hitRadius));
             var el = resolved.el;
             var target = resolved.target || el;
             if (!target) return false;
+            if (window.__tvbIsMediaSurface(target) && (target.tagName || '').toUpperCase() === 'IFRAME') {
+                window.__tvbForwardToIframe(target, x, y, 'down');
+            }
             window.__tvbPointerDownTarget = target;
             window.__tvbPointerDownMoved = false;
             try { target.focus({ preventScroll: true }); } catch (e) {}
@@ -183,6 +196,7 @@ extension JavaScriptExecutor {
             \(Self.jsPointConversion(viewPoint, pageZoom: pageZoom))
             if (!window.__tvbOpenDropdown) { \(Self.jsDropdownHelpers) }
             if (!window.__tvbResolveTargetAt) { \(Self.jsHitTestHelpers) }
+            if (!window.__tvbActivateIframe) { \(Self.jsIframeHelpers) }
             if (!window.__tvbApplyHoverAt) { \(Self.jsHoverEmulationHelpers) }
             if (!window.__tvbEnterVideoFullscreen) { \(Self.jsFullscreenHelpers) }
 
@@ -196,6 +210,16 @@ extension JavaScriptExecutor {
             }
 
             window.__tvbApplyHoverAt(el || target, x, y, 0);
+
+            if (window.__tvbIsMediaSurface(target) && (target.tagName || '').toUpperCase() === 'IFRAME') {
+                var modal = target.closest('.modal, [role="dialog"], .lightbox, .popup');
+                if (modal) window.__tvbPinOverlay(modal);
+                window.__tvbActivateIframe(target, x, y, 'click');
+                var src = target.src || '';
+                var host = '';
+                try { host = new URL(src, location.href).hostname || ''; } catch (e) {}
+                return { kind: 'iframe', src: src, host: host };
+            }
 
             function trust(evt) {
                 try { Object.defineProperty(evt, 'isTrusted', { get: function() { return true; } }); } catch (e) {}
@@ -329,7 +353,14 @@ extension JavaScriptExecutor {
         })()
         """
         let result = try await evaluateJavaScriptAsUserGesture(js)
-        return Self.dictionaryValue(result)
+        let dict = Self.dictionaryValue(result)
+        if dict?["kind"] as? String == "iframe" {
+            let host = (dict?["host"] as? String) ?? ""
+            if !host.isEmpty {
+                await activateChildFrameMedia(urlContains: host)
+            }
+        }
+        return dict
     }
 
     func dispatchWheel(deltaX: CGFloat, deltaY: CGFloat, at viewPoint: CGPoint) async {
@@ -371,12 +402,23 @@ extension JavaScriptExecutor {
             \(Self.jsPointConversion(viewPoint, pageZoom: pageZoom))
             if (!window.__tvbOpenDropdown) { \(Self.jsDropdownHelpers) }
             if (!window.__tvbResolveTargetAt) { \(Self.jsHitTestHelpers) }
+            if (!window.__tvbActivateIframe) { \(Self.jsIframeHelpers) }
 
             var resolved = window.__tvbResolveTargetAt(x, y, \(hitRadius));
             var el = resolved.el;
             var target = resolved.target;
             if (!el) return { kind: 'miss' };
             if (!target) target = el;
+
+            if (window.__tvbIsMediaSurface(target) && (target.tagName || '').toUpperCase() === 'IFRAME') {
+                var modal = target.closest('.modal, [role="dialog"], .lightbox, .popup');
+                if (modal) window.__tvbPinOverlay(modal);
+                window.__tvbActivateIframe(target, x, y, 'click');
+                var src = target.src || '';
+                var host = '';
+                try { host = new URL(src, location.href).hostname || ''; } catch (e) {}
+                return { kind: 'iframe', src: src, host: host };
+            }
 
             var field = target.closest('input, textarea, [contenteditable="true"]');
             if (field) {
@@ -532,15 +574,14 @@ extension JavaScriptExecutor {
         })()
         """
         let result = try await evaluateJavaScriptAsUserGesture(js)
-        if let dict = result as? [String: Any] { return dict }
-        if let dict = result as? NSDictionary {
-            var mapped: [String: Any] = [:]
-            for (key, value) in dict {
-                if let k = key as? String { mapped[k] = value }
+        let dict = Self.dictionaryValue(result)
+        if dict?["kind"] as? String == "iframe" {
+            let host = (dict?["host"] as? String) ?? ""
+            if !host.isEmpty {
+                await activateChildFrameMedia(urlContains: host)
             }
-            return mapped
         }
-        return nil
+        return dict
     }
 
     private static let jsSetFieldValueHelpers = """
@@ -686,8 +727,41 @@ extension JavaScriptExecutor {
     static var jsHitTestHelpers: String {
         let selector = clickableSelector
         return """
+            window.__tvbIsMediaSurface = function(el) {
+                if (!el) return false;
+                var tag = (el.tagName || '').toUpperCase();
+                return tag === 'IFRAME' || tag === 'VIDEO' || tag === 'EMBED' || tag === 'OBJECT';
+            };
+            window.__tvbMediaSurfaceAt = function(px, py) {
+                var nodes = document.querySelectorAll('iframe, video, embed, object');
+                var hit = null;
+                for (var i = 0; i < nodes.length; i++) {
+                    var n = nodes[i];
+                    var r;
+                    try { r = n.getBoundingClientRect(); } catch (e) { continue; }
+                    if (px >= r.left && py >= r.top && px <= r.right && py <= r.bottom) hit = n;
+                }
+                return hit;
+            };
+            window.__tvbElementAt = function(px, py) {
+                var top = null;
+                try { top = document.elementFromPoint(px, py); } catch (e) {}
+                var media = window.__tvbMediaSurfaceAt(px, py);
+                if (media && top) {
+                    var clickable = window.__tvbClickableFrom(top);
+                    if (clickable && !window.__tvbIsMediaSurface(clickable) && clickable !== media && !media.contains(clickable)) {
+                        try {
+                            var r = clickable.getBoundingClientRect();
+                            if (r.width * r.height < 20000) return top;
+                        } catch (e2) {}
+                    }
+                    return media;
+                }
+                return media || top;
+            };
             window.__tvbClickableFrom = function(el) {
                 if (!el || !el.closest) return null;
+                if (window.__tvbIsMediaSurface(el)) return el;
                 var target = el.closest('\(selector)');
                 if (target) return target;
                 var node = el;
@@ -707,8 +781,12 @@ extension JavaScriptExecutor {
             };
             window.__tvbResolveTargetAt = function(cx, cy, radius) {
                 function sample(px, py) {
-                    var el = document.elementFromPoint(px, py);
+                    var el = window.__tvbElementAt(px, py);
                     if (!el) return null;
+                    if (window.__tvbIsMediaSurface(el)) {
+                        var mdx = px - cx, mdy = py - cy;
+                        return { el: el, target: el, dist: Math.sqrt(mdx*mdx + mdy*mdy), area: 1e9, lock: true };
+                    }
                     var target = window.__tvbClickableFrom(el);
                     if (!target) return null;
                     var area = 1e9;
@@ -720,6 +798,7 @@ extension JavaScriptExecutor {
                     return { el: el, target: target, dist: Math.sqrt(dx*dx + dy*dy), area: area };
                 }
                 var best = sample(cx, cy);
+                if (best && best.lock) return best;
                 if (best && best.dist === 0 && best.area < 20000) return best;
                 var rad = Math.max(0, radius || 0);
                 for (var r = 4; r <= rad; r += 4) {
@@ -728,15 +807,79 @@ extension JavaScriptExecutor {
                         var ang = (Math.PI * 2 * i) / steps;
                         var hit = sample(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
                         if (!hit) continue;
+                        if (hit.lock) continue;
                         if (!best || hit.area < best.area * 0.85 || (hit.area <= best.area && hit.dist < best.dist)) {
                             best = hit;
                         }
                     }
                 }
-                return best || { el: document.elementFromPoint(cx, cy), target: null, dist: 0, area: 1e9 };
+                return best || { el: window.__tvbElementAt(cx, cy), target: null, dist: 0, area: 1e9 };
             };
         """
     }
+
+    static let jsIframeHelpers = """
+            window.__tvbIsYouTubeEmbed = function(src) {
+                return /youtube\\.com\\/embed|youtube-nocookie\\.com\\/embed|youtu\\.be\\//i.test(src || '');
+            };
+            window.__tvbEnsureYouTubeAPI = function(iframe, autoplay) {
+                if (!iframe) return;
+                var src = iframe.getAttribute('src') || iframe.src || '';
+                if (!window.__tvbIsYouTubeEmbed(src)) return;
+                var allow = iframe.getAttribute('allow') || '';
+                if (allow.indexOf('autoplay') === -1) {
+                    iframe.setAttribute('allow', (allow ? allow + '; ' : '') + 'autoplay; fullscreen');
+                }
+                var hasAPI = /[?&]enablejsapi=1(?:&|$)/.test(src);
+                if (hasAPI && !autoplay) return;
+                try {
+                    var url = new URL(src, location.href);
+                    url.searchParams.set('enablejsapi', '1');
+                    try { url.searchParams.set('origin', location.origin); } catch (e) {}
+                    if (autoplay) url.searchParams.set('autoplay', '1');
+                    var next = url.toString();
+                    if (next !== src) iframe.setAttribute('src', next);
+                } catch (e2) {}
+            };
+            window.__tvbPrepareYouTubeIframes = function() {
+                var nodes = document.querySelectorAll('iframe');
+                for (var i = 0; i < nodes.length; i++) window.__tvbEnsureYouTubeAPI(nodes[i], false);
+            };
+            window.__tvbInstallYouTubeObserver = function() {
+                if (window.__tvbYtObserver) return;
+                window.__tvbPrepareYouTubeIframes();
+                try {
+                    window.__tvbYtObserver = new MutationObserver(function() {
+                        window.__tvbPrepareYouTubeIframes();
+                    });
+                    var root = document.documentElement;
+                    if (root) window.__tvbYtObserver.observe(root, { childList: true, subtree: true });
+                } catch (e) {}
+            };
+            window.__tvbForwardToIframe = function(iframe, pageX, pageY, type) {
+                if (!iframe || !iframe.contentWindow) return;
+                var rect;
+                try { rect = iframe.getBoundingClientRect(); } catch (e) { return; }
+                var payload = JSON.stringify({
+                    __tvb: 'pointer',
+                    type: type || 'click',
+                    x: pageX - rect.left,
+                    y: pageY - rect.top
+                });
+                try { iframe.contentWindow.postMessage(payload, '*'); } catch (e2) {}
+            };
+            window.__tvbActivateIframe = function(iframe, pageX, pageY, type) {
+                if (!iframe) return;
+                var src = iframe.getAttribute('src') || iframe.src || '';
+                var needsAPI = window.__tvbIsYouTubeEmbed(src) && !/[?&]enablejsapi=1(?:&|$)/.test(src);
+                window.__tvbEnsureYouTubeAPI(iframe, !!needsAPI);
+                try {
+                    iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }), '*');
+                } catch (e) {}
+                window.__tvbForwardToIframe(iframe, pageX, pageY, type || 'click');
+                try { iframe.focus(); } catch (e2) {}
+            };
+    """
 
     static let jsDropdownHelpers = """
             window.__tvbPinOverlay = function(el) {
