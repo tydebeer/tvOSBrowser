@@ -75,6 +75,7 @@ final class BrowserViewController: GCEventViewController {
         super.viewDidAppear(animated)
         _ = becomeFirstResponder()
         reclaimPointerControl()
+        applyPreferDarkAppearance(SettingsManager.shared.preferDarkSites)
         if !didRunStartup {
             didRunStartup = true
             viewModel.handleStartup()
@@ -118,7 +119,7 @@ final class BrowserViewController: GCEventViewController {
             container.trailingAnchor.constraint(equalTo: contentHost.trailingAnchor),
             container.bottomAnchor.constraint(equalTo: contentHost.bottomAnchor),
         ])
-        applyPreferDarkSitesToWebView(SettingsManager.shared.preferDarkSites)
+        applyPreferDarkAppearance(SettingsManager.shared.preferDarkSites)
     }
 
     private func setupStartPage() {
@@ -542,14 +543,20 @@ final class BrowserViewController: GCEventViewController {
         settings.preferDarkSites.toggle()
         let isOn = settings.preferDarkSites
         browserMenu.setPreferDarkSitesSelected(isOn)
-        applyPreferDarkSitesToWebView(isOn)
+        applyPreferDarkAppearance(isOn)
         Task {
             await viewModel.webContainer.jsExecutor.applyPreferDarkSites(isOn)
         }
     }
 
-    private func applyPreferDarkSitesToWebView(_ enabled: Bool) {
-        viewModel.webContainer.bridge.webView.overrideUserInterfaceStyle = enabled ? .dark : .unspecified
+    private func applyPreferDarkAppearance(_ enabled: Bool) {
+        let style: UIUserInterfaceStyle = enabled ? .dark : .unspecified
+        view.window?.overrideUserInterfaceStyle = style
+        overrideUserInterfaceStyle = style
+        startPageVC.overrideUserInterfaceStyle = style
+        viewModel.webContainer.bridge.webView.overrideUserInterfaceStyle = style
+        view.backgroundColor = DSColor.background
+        startPageVC.applyAppearance()
     }
 
     private func refreshCachedDocumentSizeAndClampScroll() {

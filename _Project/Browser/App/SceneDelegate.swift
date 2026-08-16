@@ -12,7 +12,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = scene as? UIWindowScene else { return }
         let window = UIWindow(windowScene: windowScene)
         window.rootViewController = BrowserViewController()
-        window.overrideUserInterfaceStyle = .unspecified
+        window.overrideUserInterfaceStyle = SettingsManager.shared.preferDarkSites ? .dark : .unspecified
         window.makeKeyAndVisible()
         self.window = window
     }

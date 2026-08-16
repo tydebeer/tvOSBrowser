@@ -155,7 +155,7 @@ final class BrowserMenuPresenter {
         sections.append(SafariMenuSection(title: "Display", rows: [
             SafariMenuRow(
                 title: "Prefer Dark Sites",
-                subtitle: "May break some site images on tvOS",
+                subtitle: "Start page and websites. May break some site images",
                 symbol: "moon.fill",
                 style: preferDark ? .selected : .normal,
                 dismissesOnSelect: false,

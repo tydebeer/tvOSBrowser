@@ -420,8 +420,8 @@ private final class SafariMenuZoomStepperCell: UITableViewCell {
 
     static let reuseID = "SafariMenuZoomStepperCell"
 
-    private let minusButton = UIButton(type: .system)
-    private let plusButton = UIButton(type: .system)
+    private let minusButton = SafariMenuStepButton(symbol: "minus")
+    private let plusButton = SafariMenuStepButton(symbol: "plus")
     private let percentLabel = UILabel()
     private var onZoomOut: (() -> Void)?
     private var onZoomIn: (() -> Void)?
@@ -436,8 +436,8 @@ private final class SafariMenuZoomStepperCell: UITableViewCell {
         percentLabel.textAlignment = .center
         percentLabel.isUserInteractionEnabled = false
 
-        configureStepButton(minusButton, symbol: "minus", action: #selector(handleZoomOut))
-        configureStepButton(plusButton, symbol: "plus", action: #selector(handleZoomIn))
+        minusButton.addTarget(self, action: #selector(handleZoomOut), for: .primaryActionTriggered)
+        plusButton.addTarget(self, action: #selector(handleZoomIn), for: .primaryActionTriggered)
 
         let stack = UIStackView(arrangedSubviews: [minusButton, percentLabel, plusButton])
         stack.axis = .horizontal
@@ -481,31 +481,54 @@ private final class SafariMenuZoomStepperCell: UITableViewCell {
         percentLabel.text = "\(percent)%"
     }
 
-    private func configureStepButton(_ button: UIButton, symbol: String, action: Selector) {
-        button.backgroundColor = DSColor.fillQuaternary
-        button.tintColor = DSColor.accent
-        DSMetrics.continuousCorners(button, radius: DSMetrics.radiusMD)
-        button.addTarget(self, action: action, for: .primaryActionTriggered)
-        button.translatesAutoresizingMaskIntoConstraints = false
-
-        // tvOS UIButton often drops setImage SF Symbols; mirror menu rows with UIImageView.
-        let config = UIImage.SymbolConfiguration(pointSize: DSMetrics.chromeIconPointSize, weight: .semibold)
-        let icon = UIImageView(image: UIImage(systemName: symbol, withConfiguration: config))
-        icon.tintColor = DSColor.accent
-        icon.contentMode = .scaleAspectFit
-        icon.isUserInteractionEnabled = false
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        button.addSubview(icon)
-        NSLayoutConstraint.activate([
-            icon.centerXAnchor.constraint(equalTo: button.centerXAnchor),
-            icon.centerYAnchor.constraint(equalTo: button.centerYAnchor),
-            icon.widthAnchor.constraint(equalToConstant: DSMetrics.menuIconSize),
-            icon.heightAnchor.constraint(equalToConstant: DSMetrics.menuIconSize),
-        ])
-    }
-
     @objc private func handleZoomOut() { onZoomOut?() }
     @objc private func handleZoomIn() { onZoomIn?() }
+}
+
+/// Idle: white row + accent icon. Focused: accent fill + white icon (no tvOS invert halo).
+private final class SafariMenuStepButton: UIButton {
+
+    private let iconView = UIImageView()
+
+    init(symbol: String) {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        adjustsImageWhenHighlighted = false
+        DSMetrics.continuousCorners(self, radius: DSMetrics.radiusMD)
+
+        let config = UIImage.SymbolConfiguration(pointSize: DSMetrics.chromeIconPointSize, weight: .semibold)
+        iconView.image = UIImage(systemName: symbol, withConfiguration: config)
+        iconView.contentMode = .scaleAspectFit
+        iconView.isUserInteractionEnabled = false
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(iconView)
+        NSLayoutConstraint.activate([
+            iconView.centerXAnchor.constraint(equalTo: centerXAnchor),
+            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconView.widthAnchor.constraint(equalToConstant: DSMetrics.menuIconSize),
+            iconView.heightAnchor.constraint(equalToConstant: DSMetrics.menuIconSize),
+        ])
+        applyFocusAppearance(focused: false)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
+
+    override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
+        super.didUpdateFocus(in: context, with: coordinator)
+        coordinator.addCoordinatedAnimations {
+            self.applyFocusAppearance(focused: self.isFocused)
+        }
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        applyFocusAppearance(focused: isFocused)
+    }
+
+    private func applyFocusAppearance(focused: Bool) {
+        backgroundColor = focused ? DSColor.accent : DSColor.backgroundGroupedSecondary
+        iconView.tintColor = focused ? DSColor.textOnAccent : DSColor.accent
+    }
 }
 
 private final class SafariMenuCell: UITableViewCell {
