@@ -31,7 +31,10 @@ final class SafariAddressSheetViewController: DimmedMaterialSheetController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        textField.becomeFirstResponder()
+        DispatchQueue.main.asyncAfter(deadline: .now() + DSMetrics.pointerClickDebounce) { [weak self] in
+            guard let self, self.view.window != nil else { return }
+            self.textField.becomeFirstResponder()
+        }
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -127,6 +130,7 @@ final class SafariAddressSheetViewController: DimmedMaterialSheetController {
 
     private func submit() {
         let text = VoiceInputSanitizer.sanitize(textField.text ?? "")
+        guard !text.isEmpty else { return }
         close { [weak self] in self?.onSubmit?(text) }
     }
 

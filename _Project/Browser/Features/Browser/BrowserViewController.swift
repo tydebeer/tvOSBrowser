@@ -718,6 +718,7 @@ final class BrowserViewController: GCEventViewController {
     }
 
     private func reclaimPointerControl() {
+        guard presentedViewController == nil else { return }
         _ = becomeFirstResponder()
         view.becomeFirstResponder()
         setNeedsFocusUpdate()
@@ -759,6 +760,17 @@ final class BrowserViewController: GCEventViewController {
     }
 
     override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
+        // System search/address alerts present a keyboard window. Forcing a
+        // non-animated dismiss here closes that keyboard immediately.
+        if presentedViewController is UIAlertController {
+            super.dismiss(animated: flag) { [weak self] in
+                completion?()
+                if self?.presentedViewController == nil {
+                    self?.noteChromeDismissed()
+                }
+            }
+            return
+        }
         super.dismiss(animated: false) { [weak self] in
             completion?()
             if self?.presentedViewController == nil {
@@ -1385,30 +1397,29 @@ final class BrowserViewController: GCEventViewController {
     private func showSearch() {
         presentPromptAfterMenu { [weak self] in
             guard let self else { return }
-            NativeTextPrompt.presentSearchPrompt(
-                from: self,
-                onSearch: { [weak self] text in
-                    guard let self else { return }
-                    self.noteChromeDismissed()
-                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !trimmed.isEmpty else {
-                        self.reclaimPointerControl()
-                        return
-                    }
-                    Task { @MainActor [weak self] in
-                        guard let self else { return }
-                        let usedSite = await self.viewModel.submitSiteSearch(trimmed)
-                        if !usedSite {
-                            self.viewModel.load(rawInput: self.viewModel.searchURL(forQuery: trimmed))
-                        }
-                        self.reclaimPointerControl()
-                    }
-                },
-                onCancel: { [weak self] in
-                    self?.noteChromeDismissed()
-                    self?.reclaimPointerControl()
+            let sheet = SafariAddressSheetViewController()
+            sheet.sheetTitle = "Search"
+            sheet.placeholder = "Search"
+            sheet.initialText = ""
+            sheet.submitButtonTitle = "Search"
+            sheet.keyboardType = .webSearch
+            sheet.onSubmit = { [weak self] text in
+                guard let self else { return }
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else {
+                    self.reclaimPointerControl()
+                    return
                 }
-            )
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    let usedSite = await self.viewModel.submitSiteSearch(trimmed)
+                    if !usedSite {
+                        self.viewModel.load(rawInput: self.viewModel.searchURL(forQuery: trimmed))
+                    }
+                    self.reclaimPointerControl()
+                }
+            }
+            _ = self.presentChrome(sheet)
         }
     }
 
@@ -1416,8 +1427,6 @@ final class BrowserViewController: GCEventViewController {
     private func presentPromptAfterMenu(_ present: @escaping () -> Void) {
         DispatchQueue.main.asyncAfter(deadline: .now() + DSMetrics.pointerClickDebounce) { [weak self] in
             guard let self, self.presentedViewController == nil else { return }
-            self.isPresentingChrome = true
-            self.clickpadCaptureView.allowsFocus = false
             present()
         }
     }
