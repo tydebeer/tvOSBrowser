@@ -62,8 +62,8 @@ actor JavaScriptExecutor {
         guard let bridge else { return nil }
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.main.async {
-                bridge.evaluateJavaScriptInChildFrames(
-                    js,
+                bridge.evaluateJavaScript(
+                    inChildFrames: js,
                     urlContains: urlContains,
                     withUserGesture: true
                 ) { result, error in

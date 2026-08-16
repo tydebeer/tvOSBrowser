@@ -160,6 +160,9 @@ final class BrowserViewController: GCEventViewController {
         browserMenu.onTogglePreferDarkSites = { [weak self] in
             self?.togglePreferDarkSites()
         }
+        browserMenu.onSelectPointerInput = { [weak self] mode in
+            self?.selectPointerInput(mode)
+        }
         browserMenu.onClearCache = { [weak self] in
             self?.showConfirmClear(
                 title: "Clear Cache?",
@@ -209,14 +212,16 @@ final class BrowserViewController: GCEventViewController {
 
     private func setupClickpad() {
         clickpadCaptureView.onMoved = { [weak self] dx, dy in
-            self?.noteCursorActivity()
-            self?.pointer.moveBy(dx: dx, dy: dy)
+            guard let self, SettingsManager.shared.usesTrackpadPointer else { return }
+            self.noteCursorActivity()
+            self.pointer.moveBy(dx: dx, dy: dy)
         }
         clickpadCaptureView.onTapped = { [weak self] in
+            guard SettingsManager.shared.usesTrackpadPointer else { return }
             self?.fireSelectClick()
         }
         clickpadCaptureView.onScrolled = { [weak self] dx, dy in
-            guard let self else { return }
+            guard let self, SettingsManager.shared.usesTrackpadPointer else { return }
             self.noteCursorActivity()
             if self.viewModel.isShowingStartPage {
                 self.scrollStartPageBy(dx: dx, dy: dy)
@@ -340,6 +345,8 @@ final class BrowserViewController: GCEventViewController {
             return
         }
 
+        guard !SettingsManager.shared.usesTrackpadPointer else { return }
+
         noteCursorActivity()
         pointer.beginDirectionalPress(press.type)
     }
@@ -428,6 +435,14 @@ final class BrowserViewController: GCEventViewController {
     private func syncMouseSpeedMenuPercent() {
         let percent = Int((SettingsManager.shared.mouseSpeed * 100).rounded())
         browserMenu.updateMouseSpeedPercent(percent)
+    }
+
+    private func selectPointerInput(_ mode: PointerInputMode) {
+        SettingsManager.shared.pointerInputMode = mode
+        browserMenu.setPointerInputMode(mode)
+        if mode == .trackpad {
+            pointer.cancelDirectionalPress()
+        }
     }
 
     private func togglePreferDarkSites() {

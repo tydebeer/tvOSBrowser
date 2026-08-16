@@ -22,6 +22,7 @@ final class BrowserMenuPresenter {
     var onMouseSpeedOut: (() -> Void)?
     var onResetMouseSpeed: (() -> Void)?
     var onTogglePreferDarkSites: (() -> Void)?
+    var onSelectPointerInput: ((PointerInputMode) -> Void)?
     var onClearCache: (() -> Void)?
     var onClearCookies: (() -> Void)?
     var onClearHistory: (() -> Void)?
@@ -38,6 +39,10 @@ final class BrowserMenuPresenter {
 
     func setPreferDarkSitesSelected(_ isOn: Bool) {
         presentedMenu?.setPreferDarkSitesSelected(isOn)
+    }
+
+    func setPointerInputMode(_ mode: PointerInputMode) {
+        presentedMenu?.setPointerInputMode(mode)
     }
 
     func present(
@@ -121,6 +126,27 @@ final class BrowserMenuPresenter {
                 symbol: "arrow.counterclockwise",
                 dismissesOnSelect: false,
                 action: { [weak self] in self?.onResetMouseSpeed?() }
+            ),
+        ]))
+
+        // MARK: Pointer Input
+        let pointerMode = settings.pointerInputMode
+        sections.append(SafariMenuSection(title: "Pointer Input", rows: [
+            SafariMenuRow(
+                title: "Trackpad",
+                subtitle: "Clickpad moves the cursor",
+                symbol: "hand.draw",
+                style: pointerMode == .trackpad ? .selected : .normal,
+                dismissesOnSelect: false,
+                action: { [weak self] in self?.onSelectPointerInput?(.trackpad) }
+            ),
+            SafariMenuRow(
+                title: "Ring",
+                subtitle: "Outer ring moves the cursor",
+                symbol: "circle.circle",
+                style: pointerMode == .ring ? .selected : .normal,
+                dismissesOnSelect: false,
+                action: { [weak self] in self?.onSelectPointerInput?(.ring) }
             ),
         ]))
 

@@ -153,12 +153,22 @@ final class SafariMenuViewController: DimmedMaterialSheetController {
     }
 
     func setPreferDarkSitesSelected(_ isOn: Bool) {
+        setRowSelected(title: "Prefer Dark Sites", isOn: isOn)
+    }
+
+    func setPointerInputMode(_ mode: PointerInputMode) {
+        setRowSelected(title: "Trackpad", isOn: mode == .trackpad)
+        setRowSelected(title: "Ring", isOn: mode == .ring)
+    }
+
+    private func setRowSelected(title: String, isOn: Bool) {
         for sectionIndex in sections.indices {
             for rowIndex in sections[sectionIndex].rows.indices {
                 let row = sections[sectionIndex].rows[rowIndex]
-                guard row.title == "Prefer Dark Sites" else { continue }
+                guard row.title == title else { continue }
                 sections[sectionIndex].rows[rowIndex] = SafariMenuRow(
                     title: row.title,
+                    subtitle: row.subtitle,
                     symbol: row.symbol,
                     style: isOn ? .selected : .normal,
                     dismissesOnSelect: false,

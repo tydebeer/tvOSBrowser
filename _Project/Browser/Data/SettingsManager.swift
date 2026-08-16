@@ -1,6 +1,11 @@
 import Foundation
 import Security
 
+enum PointerInputMode: String {
+    case trackpad
+    case ring
+}
+
 final class SettingsManager {
     static let shared = SettingsManager()
     private init() {}
@@ -19,6 +24,7 @@ final class SettingsManager {
         static let passwordSaveDeniedHosts = "PasswordSaveDeniedHosts"
         static let searchURLTemplate = "SearchURLTemplate"
         static let preferDarkSites = "PreferDarkSites"
+        static let pointerInputMode = "PointerInputMode"
     }
 
     private enum CookieKeychain {
@@ -75,6 +81,20 @@ final class SettingsManager {
         get { defaults.bool(forKey: Keys.suppressHints) }
         set { defaults.set(newValue, forKey: Keys.suppressHints) }
     }
+
+    /// Exclusive cursor mover. Default trackpad so clickpad and ring never fight.
+    var pointerInputMode: PointerInputMode {
+        get {
+            guard let raw = defaults.string(forKey: Keys.pointerInputMode),
+                  let mode = PointerInputMode(rawValue: raw) else {
+                return .trackpad
+            }
+            return mode
+        }
+        set { defaults.set(newValue.rawValue, forKey: Keys.pointerInputMode) }
+    }
+
+    var usesTrackpadPointer: Bool { pointerInputMode == .trackpad }
 
     /// Prefer dark appearance for web pages when the site supports it (default off — safer for images on tvOS).
     var preferDarkSites: Bool {
