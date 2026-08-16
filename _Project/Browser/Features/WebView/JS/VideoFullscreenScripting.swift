@@ -6,6 +6,21 @@ extension JavaScriptExecutor {
         _ = try? await evaluateJavaScript("(function(){ if (window.__tvbExitVideoFullscreen) return window.__tvbExitVideoFullscreen(); return false; })()")
     }
 
+    /// Pause every video/audio on the page (and child frames when reachable).
+    func pauseAllMedia() async {
+        let js = """
+        (function() {
+            var list = document.querySelectorAll('video, audio');
+            for (var i = 0; i < list.length; i++) {
+                try { list[i].pause(); } catch (e) {}
+            }
+            return true;
+        })()
+        """
+        _ = try? await evaluateJavaScript(js)
+        _ = try? await evaluateJavaScriptInChildFrames(js, urlContains: "")
+    }
+
     /// Seek the fullscreen video by `seconds` (negative = rewind). No-op if not in FS.
     @discardableResult
     func seekFullscreenVideo(by seconds: Double) async -> Bool {
@@ -114,6 +129,7 @@ extension JavaScriptExecutor {
             window.__tvbResolveFullscreenVideo = window.__tvbResolveFullscreenVideo || function() {
                 return window.__tvbFullscreenVideo
                     || document.querySelector('video[data-tvb-fs=\"1\"]')
+                    || window.__tvbHoverVideo
                     || null;
             };
     """
@@ -145,6 +161,79 @@ extension JavaScriptExecutor {
         return Self.boolValue(result)
     }
 
+    @discardableResult
+    func enterVideoFullscreenAt(_ viewPoint: CGPoint) async -> Bool {
+        let pageZoom = await currentPageZoom()
+        let js = """
+        (function() {
+            \(Self.jsPointConversion(viewPoint, pageZoom: pageZoom))
+            if (!window.__tvbEnterVideoFullscreen) { \(Self.jsFullscreenHelpers) }
+            var el = document.elementFromPoint(x, y);
+            var video = window.__tvbFindVideoNear(el);
+            if (!video && el && (el.tagName || '').toUpperCase() === 'VIDEO') video = el;
+            if (!video) return false;
+            return window.__tvbEnterVideoFullscreen(video);
+        })()
+        """
+        let result = try? await evaluateJavaScriptAsUserGesture(js)
+        return Self.boolValue(result)
+    }
+
+    func videoSettingsSnapshot() async -> (tracks: [[String: Any]], selectedIndex: Int, rate: Double, muted: Bool) {
+        let tracksResult = await fullscreenSubtitleTracks()
+        let js = """
+        (function() {
+            \(Self.jsFullscreenVideoResolver)
+            var video = window.__tvbResolveFullscreenVideo();
+            if (!video) return { rate: 1, muted: false };
+            return {
+                rate: video.playbackRate || 1,
+                muted: !!video.muted
+            };
+        })()
+        """
+        let result = try? await evaluateJavaScript(js)
+        let dict = Self.dictionaryValue(result)
+        let rate = (dict?["rate"] as? NSNumber)?.doubleValue
+            ?? (dict?["rate"] as? Double)
+            ?? 1
+        var muted = false
+        if let b = dict?["muted"] as? Bool {
+            muted = b
+        } else if let n = dict?["muted"] as? NSNumber {
+            muted = n.boolValue
+        }
+        return (tracksResult.tracks, tracksResult.selectedIndex, rate, muted)
+    }
+
+    @discardableResult
+    func setVideoPlaybackRate(_ rate: Double) async -> Bool {
+        let js = """
+        (function() {
+            \(Self.jsFullscreenVideoResolver)
+            var video = window.__tvbResolveFullscreenVideo();
+            if (!video) return false;
+            try { video.playbackRate = \(rate); return true; } catch (e) { return false; }
+        })()
+        """
+        let result = try? await evaluateJavaScriptAsUserGesture(js)
+        return Self.boolValue(result)
+    }
+
+    @discardableResult
+    func setVideoMuted(_ muted: Bool) async -> Bool {
+        let js = """
+        (function() {
+            \(Self.jsFullscreenVideoResolver)
+            var video = window.__tvbResolveFullscreenVideo();
+            if (!video) return false;
+            try { video.muted = \(muted ? "true" : "false"); return true; } catch (e) { return false; }
+        })()
+        """
+        let result = try? await evaluateJavaScriptAsUserGesture(js)
+        return Self.boolValue(result)
+    }
+
     /// Intercept native fullscreen APIs and expand video inside the webview instead.
     static let jsFullscreenHelpers = """
             window.__tvbFindVideoNear = function(fromEl) {
@@ -166,6 +255,20 @@ extension JavaScriptExecutor {
                     }
                 }
                 return null;
+            };
+            window.__tvbIsVideoControl = function(el) {
+                if (!el || !el.closest) return false;
+                return !!el.closest(
+                    'button, a, input, select, textarea, [role=\"button\"], [role=\"slider\"],' +
+                    ' [role=\"menuitem\"], .vjs-control-bar, .jw-controlbar, .plyr__controls,' +
+                    ' .ytp-chrome-bottom, .ytp-chrome-controls, .fp-controls'
+                );
+            };
+            window.__tvbIsVideoSurface = function(el) {
+                if (!el) return false;
+                if (window.__tvbIsVideoControl(el)) return false;
+                if ((el.tagName || '').toUpperCase() === 'VIDEO') return true;
+                return !!window.__tvbFindVideoNear(el);
             };
             window.__tvbLooksLikeFullscreenControl = function(el) {
                 if (!el || !el.closest) return false;
@@ -212,8 +315,13 @@ extension JavaScriptExecutor {
             window.__tvbExitVideoFullscreen = function() {
                 var video = window.__tvbFullscreenVideo || document.querySelector('video[data-tvb-fs=\"1\"]');
                 if (video) {
+                    try { video.pause(); } catch (e) {}
                     video.removeAttribute('data-tvb-fs');
                     video.classList.remove('tvb-fs-target');
+                }
+                var all = document.querySelectorAll('video, audio');
+                for (var i = 0; i < all.length; i++) {
+                    try { all[i].pause(); } catch (e2) {}
                 }
                 window.__tvbFullscreenVideo = null;
                 document.documentElement.removeAttribute('data-tvb-video-fs');

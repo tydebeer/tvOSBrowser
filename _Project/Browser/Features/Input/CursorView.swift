@@ -123,4 +123,5 @@ extension Notification.Name {
 
 enum CursorHoverKey {
     static let isClickable = "isClickable"
+    static let overVideo = "overVideo"
 }

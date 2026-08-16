@@ -6,6 +6,50 @@ enum PointerInputMode: String {
     case ring
 }
 
+enum CaptionFont: String, CaseIterable {
+    case system
+    case sans
+    case serif
+    case mono
+
+    var menuTitle: String {
+        switch self {
+        case .system: return "Default Font"
+        case .sans: return "Sans Serif"
+        case .serif: return "Serif"
+        case .mono: return "Monospace"
+        }
+    }
+
+    var cssFamily: String {
+        switch self {
+        case .system: return "inherit"
+        case .sans: return "-apple-system, Helvetica Neue, sans-serif"
+        case .serif: return "Georgia, Times New Roman, serif"
+        case .mono: return "Menlo, Consolas, monospace"
+        }
+    }
+}
+
+enum CaptionColor: String, CaseIterable {
+    case white
+    case yellow
+
+    var menuTitle: String {
+        switch self {
+        case .white: return "White"
+        case .yellow: return "Yellow"
+        }
+    }
+
+    var cssHex: String {
+        switch self {
+        case .white: return "#FFFFFF"
+        case .yellow: return "#FFD60A"
+        }
+    }
+}
+
 final class SettingsManager {
     static let shared = SettingsManager()
     private init() {}
@@ -25,6 +69,9 @@ final class SettingsManager {
         static let searchURLTemplate = "SearchURLTemplate"
         static let preferDarkSites = "PreferDarkSites"
         static let pointerInputMode = "PointerInputMode"
+        static let captionSize = "CaptionSize"
+        static let captionFont = "CaptionFont"
+        static let captionColor = "CaptionColor"
     }
 
     private enum CookieKeychain {
@@ -95,6 +142,43 @@ final class SettingsManager {
     }
 
     var usesTrackpadPointer: Bool { pointerInputMode == .trackpad }
+
+    /// Caption cue size (1.0 = 100%).
+    var captionSize: CGFloat {
+        get {
+            guard defaults.object(forKey: Keys.captionSize) != nil else {
+                return DSMetrics.captionSizeDefault
+            }
+            let value = CGFloat(defaults.double(forKey: Keys.captionSize))
+            return min(DSMetrics.captionSizeMax, max(DSMetrics.captionSizeMin, value))
+        }
+        set {
+            let clamped = min(DSMetrics.captionSizeMax, max(DSMetrics.captionSizeMin, newValue))
+            defaults.set(Double(clamped), forKey: Keys.captionSize)
+        }
+    }
+
+    var captionFont: CaptionFont {
+        get {
+            guard let raw = defaults.string(forKey: Keys.captionFont),
+                  let font = CaptionFont(rawValue: raw) else {
+                return .system
+            }
+            return font
+        }
+        set { defaults.set(newValue.rawValue, forKey: Keys.captionFont) }
+    }
+
+    var captionColor: CaptionColor {
+        get {
+            guard let raw = defaults.string(forKey: Keys.captionColor),
+                  let color = CaptionColor(rawValue: raw) else {
+                return .white
+            }
+            return color
+        }
+        set { defaults.set(newValue.rawValue, forKey: Keys.captionColor) }
+    }
 
     /// Prefer dark appearance for web pages when the site supports it (default off — safer for images on tvOS).
     var preferDarkSites: Bool {

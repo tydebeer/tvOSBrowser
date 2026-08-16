@@ -16,6 +16,10 @@ final class BrowserViewController: GCEventViewController {
     private var pendingMenuWorkItem: DispatchWorkItem?
     private var cursorIdleHideWorkItem: DispatchWorkItem?
     private var isSiteVideoFullscreen = false
+    private var isPointerOverVideo = false
+    private var hoverObserver: NSObjectProtocol?
+    /// Second Select on a video is treated as double-click (skip mousedown).
+    private var pendingVideoDoubleClick = false
     private var didRunStartup = false
     private var didInstallWebContainer = false
     /// Blocks overlapping chrome presents (menu + subtitles, double Menu, etc.).
@@ -45,6 +49,19 @@ final class BrowserViewController: GCEventViewController {
         bindCallbacks()
         setupBrowserMenu()
         wireJavaScriptDialogs()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(pauseMediaForBackground),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+    }
+
+    @objc private func pauseMediaForBackground() {
+        viewModel.pauseAllMedia()
+        if isSiteVideoFullscreen {
+            exitSiteVideoFullscreen()
+        }
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -247,6 +264,21 @@ final class BrowserViewController: GCEventViewController {
         }
         pointer.resetToCenter()
         updatePointerHover()
+        hoverObserver = NotificationCenter.default.addObserver(
+            forName: .cursorHoverStateChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            let over: Bool
+            if let b = note.userInfo?[CursorHoverKey.overVideo] as? Bool {
+                over = b
+            } else if let n = note.userInfo?[CursorHoverKey.overVideo] as? NSNumber {
+                over = n.boolValue
+            } else {
+                over = false
+            }
+            self?.isPointerOverVideo = over
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -263,9 +295,15 @@ final class BrowserViewController: GCEventViewController {
         reclaimPointerControl()
         noteCursorActivity()
         let now = ProcessInfo.processInfo.systemUptime
-        guard now - lastSelectClickTime > 0.35 else { return }
+        guard now - lastSelectClickTime > DSMetrics.pointerClickDebounce else { return }
         lastSelectClickTime = now
         handlePointerSelectPress()
+    }
+
+    private var isLikelyVideoDoubleClick: Bool {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastSelectClickTime <= DSMetrics.menuDoublePressInterval else { return false }
+        return isPointerOverVideo || viewModel.lastClickWasVideoSurface || isSiteVideoFullscreen
     }
 
     private func beginPointerPress() {
@@ -273,14 +311,21 @@ final class BrowserViewController: GCEventViewController {
         noteCursorActivity()
         clickpadCaptureView.beginClickHold()
         if viewModel.isShowingStartPage { return }
+        if isLikelyVideoDoubleClick {
+            pendingVideoDoubleClick = true
+            return
+        }
+        pendingVideoDoubleClick = false
         viewModel.handlePointerDown(at: pointer.position)
     }
 
     private func endPointerPress(cancelled: Bool = false) {
         let dragged = clickpadCaptureView.didDragWhileClickHeld
+        let videoDouble = pendingVideoDoubleClick
+        pendingVideoDoubleClick = false
         clickpadCaptureView.endClickHold()
         if cancelled {
-            if !viewModel.isShowingStartPage {
+            if !viewModel.isShowingStartPage, !videoDouble {
                 viewModel.handlePointerUp(at: pointer.position, fireClick: false)
             }
             return
@@ -288,15 +333,25 @@ final class BrowserViewController: GCEventViewController {
         if viewModel.isShowingStartPage {
             if !dragged {
                 let now = ProcessInfo.processInfo.systemUptime
-                guard now - lastSelectClickTime > 0.35 else { return }
+                guard now - lastSelectClickTime > DSMetrics.pointerClickDebounce else { return }
                 lastSelectClickTime = now
                 handlePointerSelectPress()
             }
             return
         }
+        if videoDouble {
+            lastSelectClickTime = 0
+            guard !dragged else { return }
+            if isSiteVideoFullscreen {
+                exitSiteVideoFullscreen()
+            } else {
+                viewModel.enterVideoFullscreen(at: pointer.position)
+            }
+            return
+        }
         let now = ProcessInfo.processInfo.systemUptime
         if !dragged {
-            guard now - lastSelectClickTime > 0.35 else {
+            if now - lastSelectClickTime <= DSMetrics.pointerClickDebounce {
                 viewModel.handlePointerUp(at: pointer.position, fireClick: false)
                 return
             }
@@ -341,7 +396,7 @@ final class BrowserViewController: GCEventViewController {
 
         if isSiteVideoFullscreen, press.type == .upArrow {
             noteCursorActivity()
-            showSubtitlePicker()
+            showVideoSettings()
             return
         }
 
@@ -705,22 +760,57 @@ final class BrowserViewController: GCEventViewController {
         )
     }
 
-    private func showSubtitlePicker() {
+    private func showVideoSettings() {
         guard isSiteVideoFullscreen, presentedViewController == nil, !isPresentingChrome else { return }
         Task { @MainActor [weak self] in
             guard let self, self.presentedViewController == nil, !self.isPresentingChrome else { return }
-            guard await self.ensureVideoFullscreenStillActive() else { return }
-            let result = await self.viewModel.fullscreenSubtitleTracks()
-            self.presentSubtitlePicker(tracks: result.tracks, selectedIndex: result.selectedIndex)
+            if self.isSiteVideoFullscreen {
+                guard await self.ensureVideoFullscreenStillActive() else { return }
+            }
+            let snap = await self.viewModel.videoSettingsSnapshot()
+            self.presentVideoSettings(
+                tracks: snap.tracks,
+                selectedIndex: snap.selectedIndex,
+                rate: snap.rate,
+                muted: snap.muted
+            )
         }
     }
 
-    private func presentSubtitlePicker(tracks: [[String: Any]], selectedIndex: Int) {
+    private func presentVideoSettings(
+        tracks: [[String: Any]],
+        selectedIndex: Int,
+        rate: Double,
+        muted: Bool
+    ) {
         guard presentedViewController == nil, !isPresentingChrome else { return }
 
-        var rows: [SafariMenuRow] = []
+        var speedRows: [SafariMenuRow] = []
+        for option in DSMetrics.videoPlaybackRates {
+            let selected = abs(option - rate) < 0.01
+            speedRows.append(SafariMenuRow(
+                title: Self.videoRateTitle(option),
+                symbol: selected ? "checkmark.circle.fill" : "circle",
+                style: selected ? .selected : .normal,
+                action: { [weak self] in
+                    self?.viewModel.setVideoPlaybackRate(option)
+                }
+            ))
+        }
+
+        let audioRows = [
+            SafariMenuRow(
+                title: muted ? "Unmute" : "Mute",
+                symbol: muted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                action: { [weak self] in
+                    self?.viewModel.setVideoMuted(!muted)
+                }
+            )
+        ]
+
+        var subtitleRows: [SafariMenuRow] = []
         if tracks.isEmpty {
-            rows.append(SafariMenuRow(
+            subtitleRows.append(SafariMenuRow(
                 title: "No Subtitles Found",
                 subtitle: "This video has no subtitle or caption tracks",
                 symbol: "captions.bubble",
@@ -728,7 +818,7 @@ final class BrowserViewController: GCEventViewController {
             ))
         } else {
             let offSelected = selectedIndex < 0
-            rows.append(SafariMenuRow(
+            subtitleRows.append(SafariMenuRow(
                 title: "Off",
                 symbol: "captions.bubble",
                 style: offSelected ? .selected : .normal,
@@ -745,7 +835,7 @@ final class BrowserViewController: GCEventViewController {
                 let title = (label?.isEmpty == false) ? label! : "Track \(index + 1)"
                 let kind = (track["kind"] as? String) ?? "subtitles"
                 let isOn = index == selectedIndex
-                rows.append(SafariMenuRow(
+                subtitleRows.append(SafariMenuRow(
                     title: title,
                     subtitle: kind.capitalized,
                     symbol: isOn ? "checkmark.circle.fill" : "circle",
@@ -758,14 +848,25 @@ final class BrowserViewController: GCEventViewController {
         }
 
         let menu = SafariMenuViewController(
-            title: "Subtitles",
-            sections: [SafariMenuSection(title: nil, rows: rows)]
+            title: "Video",
+            sections: [
+                SafariMenuSection(title: "Subtitles", rows: subtitleRows),
+                SafariMenuSection(title: "Speed", rows: speedRows),
+                SafariMenuSection(title: "Audio", rows: audioRows),
+            ]
         )
         menu.onDismiss = { [weak self] in
             self?.reclaimPointerControl()
             self?.noteCursorActivity()
         }
         presentChrome(menu)
+    }
+
+    private static func videoRateTitle(_ rate: Double) -> String {
+        if rate.rounded() == rate {
+            return "\(Int(rate))×"
+        }
+        return String(format: "%g×", rate)
     }
 
     private func handleMenuPress() {

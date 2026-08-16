@@ -81,6 +81,13 @@ enum DSMetrics {
     static let cursorFullscreenIdleHideDelay: TimeInterval = 3
     /// Ring left/right seek step while site video is fullscreen.
     static let videoFullscreenSeekSeconds: Double = 10
+    /// Select taps closer than this are treated as one click, or a video double-click.
+    static let pointerClickDebounce: TimeInterval = 0.35
+    static let videoPlaybackRates: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
+    static let captionSizeDefault: CGFloat = 1.0
+    static let captionSizeMin: CGFloat = 0.75
+    static let captionSizeMax: CGFloat = 2.0
+    static let captionSizeStep: CGFloat = 0.25
     static let chromeIconPointSize: CGFloat = 22
     static let siteIconPointSize: CGFloat = 18
     static let tabIconPointSize: CGFloat = 14

@@ -80,16 +80,18 @@ extension JavaScriptExecutor {
             if (!window.__tvbResolveTargetAt) { \(Self.jsHitTestHelpers) }
             if (!window.__tvbActivateIframe) { \(Self.jsIframeHelpers) }
             if (!window.__tvbApplyHoverAt) { \(Self.jsHoverEmulationHelpers) }
+            if (!window.__tvbFindVideoNear) { \(Self.jsFullscreenHelpers) }
 
             var buttons = \(buttons);
             var resolved = window.__tvbResolveTargetAt(x, y, 0);
             var el = resolved.el;
             if (!el) {
+                window.__tvbHoverVideo = null;
                 window.__tvbApplyHoverAt(null, x, y, buttons);
                 if (!\(suppressDropdowns ? "true" : "false") && !window.__tvbPinnedOverlay) {
                     window.__tvbCloseDropdowns(null);
                 }
-                return false;
+                return { clickable: false, overVideo: false };
             }
 
             if (window.__tvbIsMediaSurface(el) && (el.tagName || '').toUpperCase() === 'IFRAME') {
@@ -97,6 +99,7 @@ extension JavaScriptExecutor {
             }
 
             window.__tvbApplyHoverAt(el, x, y, buttons);
+            window.__tvbHoverVideo = window.__tvbFindVideoNear(el);
 
             if (!\(suppressDropdowns ? "true" : "false")) {
                 var ddRoot = el.closest('.dropdown, .vipmenu, .nav-item.dropdown');
@@ -114,16 +117,21 @@ extension JavaScriptExecutor {
 
             var clickable = resolved.target || window.__tvbClickableFrom(el);
             window.__tvbHoverEl = clickable || el;
-            return !!clickable;
+            return { clickable: !!clickable, overVideo: !!window.__tvbHoverVideo };
         })()
         """
         let result = try? await evaluateJavaScript(js)
-        let isClickable = Self.boolValue(result)
+        let dict = Self.dictionaryValue(result)
+        let isClickable = Self.boolValue(dict?["clickable"] ?? result)
+        let overVideo = Self.boolValue(dict?["overVideo"])
         await MainActor.run {
             NotificationCenter.default.post(
                 name: .cursorHoverStateChanged,
                 object: nil,
-                userInfo: [CursorHoverKey.isClickable: isClickable]
+                userInfo: [
+                    CursorHoverKey.isClickable: isClickable,
+                    CursorHoverKey.overVideo: overVideo
+                ]
             )
         }
         return isClickable
@@ -307,6 +315,10 @@ extension JavaScriptExecutor {
             }
 
             fire('click', MouseEvent);
+
+            if (window.__tvbIsVideoSurface && (window.__tvbIsVideoSurface(target) || window.__tvbIsVideoSurface(el))) {
+                return { kind: 'videoSurface' };
+            }
 
             var ddRoot = target.closest('.dropdown, .vipmenu, .nav-item.dropdown');
             var inMenuItem = target.closest('.dropdown-item, .dropdown-menu a');
@@ -515,6 +527,10 @@ extension JavaScriptExecutor {
             fire('click', MouseEvent);
             // Do NOT call target.click() — native simulateClick + this click is enough;
             // an extra HTMLElement.click() double-toggles open UI.
+
+            if (window.__tvbIsVideoSurface && (window.__tvbIsVideoSurface(target) || window.__tvbIsVideoSurface(el))) {
+                return { kind: 'videoSurface' };
+            }
 
             var ddRoot = target.closest('.dropdown, .vipmenu, .nav-item.dropdown');
             var inMenuItem = target.closest('.dropdown-item, .dropdown-menu a');

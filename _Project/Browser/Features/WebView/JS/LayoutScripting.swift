@@ -6,6 +6,14 @@ extension JavaScriptExecutor {
     /// site themes and can wipe footers / below-fold sections into a solid canvas color.
     func installPageLayoutFix() async {
         let preferDark = await MainActor.run { SettingsManager.shared.preferDarkSites }
+        let caption = await MainActor.run { () -> (Int, String, String) in
+            let settings = SettingsManager.shared
+            return (
+                Int((settings.captionSize * 100).rounded()),
+                settings.captionFont.cssFamily,
+                settings.captionColor.cssHex
+            )
+        }
         let js = """
         (function() {
             var head = document.head || document.documentElement;
@@ -25,6 +33,25 @@ extension JavaScriptExecutor {
             if (!window.__tvbEnterVideoFullscreen) {
                 \(Self.jsFullscreenHelpers)
             }
+            \(Self.jsCaptionStyleInstall(sizePercent: caption.0, fontCSS: caption.1, colorCSS: caption.2))
+        })()
+        """
+        _ = try? await evaluateJavaScript(js)
+    }
+
+    func applyCaptionStyle() async {
+        let caption = await MainActor.run { () -> (Int, String, String) in
+            let settings = SettingsManager.shared
+            return (
+                Int((settings.captionSize * 100).rounded()),
+                settings.captionFont.cssFamily,
+                settings.captionColor.cssHex
+            )
+        }
+        let js = """
+        (function() {
+            \(Self.jsCaptionStyleInstall(sizePercent: caption.0, fontCSS: caption.1, colorCSS: caption.2))
+            return true;
         })()
         """
         _ = try? await evaluateJavaScript(js)
@@ -64,6 +91,32 @@ extension JavaScriptExecutor {
             var darkStyle = document.getElementById('tvb-prefer-dark');
             if (darkStyle) darkStyle.remove();
     """
+
+    private static func jsCaptionStyleInstall(sizePercent: Int, fontCSS: String, colorCSS: String) -> String {
+        let family = fontCSS.replacingOccurrences(of: "\"", with: "")
+        let color = colorCSS.replacingOccurrences(of: "\"", with: "")
+        return """
+            var cue = document.getElementById('tvb-caption-styles');
+            if (!cue) {
+                cue = document.createElement('style');
+                cue.id = 'tvb-caption-styles';
+                (document.head || document.documentElement).appendChild(cue);
+            }
+            cue.textContent = [
+                'video::cue {',
+                '  font-size: \(sizePercent)% !important;',
+                '  font-family: \(family) !important;',
+                '  color: \(color) !important;',
+                '  background-color: rgba(0,0,0,0.65) !important;',
+                '}',
+                'video::-webkit-media-text-track-display, video::-webkit-media-text-track-container {',
+                '  font-size: \(sizePercent)% !important;',
+                '  font-family: \(family) !important;',
+                '  color: \(color) !important;',
+                '}'
+            ].join('\\n');
+        """
+    }
 
     /// Document size in CSS pixels (for scroll clamping when pageZoom leaves empty canvas).
     func documentScrollSize() async -> CGSize {

@@ -46,6 +46,7 @@ final class BrowserViewModel {
     private(set) var isShowingStartPage = true
     private(set) var canGoBack = false
     private(set) var canGoForward = false
+    private(set) var lastClickWasVideoSurface = false
 
     private var pendingLoginHost: String?
     private var pendingLoginUsername: String?
@@ -116,7 +117,9 @@ final class BrowserViewModel {
         canGoBack = false
         canGoForward = false
         webContainer.isHidden = true
+        pauseAllMedia()
         onStartPageVisibilityChanged?(true)
+        onVideoFullscreenExitRequested?()
     }
 
     func loadHomepage() {
@@ -127,8 +130,15 @@ final class BrowserViewModel {
         }
     }
 
-    func goBack()    { webContainer.bridge.goBack() }
-    func goForward() { webContainer.bridge.goForward() }
+    func goBack() {
+        pauseAllMedia()
+        webContainer.bridge.goBack()
+    }
+
+    func goForward() {
+        pauseAllMedia()
+        webContainer.bridge.goForward()
+    }
     func reload()    { webContainer.bridge.reload() }
 
     var currentURL: String? { isShowingStartPage ? nil : webContainer.bridge.currentURL?.absoluteString }
@@ -192,6 +202,7 @@ final class BrowserViewModel {
     private func handleClickResult(_ result: [String: Any]?) {
         guard let result else { return }
         let kind = result["kind"] as? String
+        lastClickWasVideoSurface = kind == "videoSurface"
 
         if kind == "videoFullscreen" {
             onVideoFullscreenRequested?()
@@ -201,6 +212,7 @@ final class BrowserViewModel {
             onVideoFullscreenExitRequested?()
             return
         }
+        if kind == "videoSurface" { return }
         guard kind == "input" else { return }
 
         let inputType = (result["inputType"] as? String) ?? "text"
@@ -341,6 +353,13 @@ final class BrowserViewModel {
     func exitVideoFullscreen() {
         Task {
             await webContainer.jsExecutor.exitVideoFullscreen()
+            await webContainer.jsExecutor.pauseAllMedia()
+        }
+    }
+
+    func pauseAllMedia() {
+        Task {
+            await webContainer.jsExecutor.pauseAllMedia()
         }
     }
 
@@ -356,6 +375,36 @@ final class BrowserViewModel {
 
     func fullscreenSubtitleTracks() async -> (tracks: [[String: Any]], selectedIndex: Int) {
         await webContainer.jsExecutor.fullscreenSubtitleTracks()
+    }
+
+    func enterVideoFullscreen(at screenPoint: CGPoint) {
+        guard screenPoint.y >= 0 else { return }
+        inputTask?.cancel()
+        inputTask = Task { [weak self] in
+            guard let self else { return }
+            let entered = await self.webContainer.jsExecutor.enterVideoFullscreenAt(screenPoint)
+            guard !Task.isCancelled else { return }
+            self.onClickCompleted?()
+            if entered {
+                self.onVideoFullscreenRequested?()
+            }
+        }
+    }
+
+    func videoSettingsSnapshot() async -> (tracks: [[String: Any]], selectedIndex: Int, rate: Double, muted: Bool) {
+        await webContainer.jsExecutor.videoSettingsSnapshot()
+    }
+
+    func setVideoPlaybackRate(_ rate: Double) {
+        Task {
+            _ = await webContainer.jsExecutor.setVideoPlaybackRate(rate)
+        }
+    }
+
+    func setVideoMuted(_ muted: Bool) {
+        Task {
+            _ = await webContainer.jsExecutor.setVideoMuted(muted)
+        }
     }
 
     func setFullscreenSubtitleTrack(index: Int) {
